@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,8 +13,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExplorerHUD } from '@/components/ExplorerHUD';
 import { PulsingMarker } from '@/components/PulsingMarker';
+import { ScanAreaButton } from '@/components/ScanAreaButton';
+import { QuestCardContainer } from '@/components/QuestCard';
+import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
 import { useLocation } from '@/hooks/useLocation';
 import { usePedometer } from '@/hooks/usePedometer';
+import { useMission } from '@/hooks/useMission';
+import { Mission } from '@/types/mission';
 import { Colors, Spacing, BorderRadius, Shadows, FontSizes } from '@/constants/theme';
 
 // Only import MapView on native platforms
@@ -37,11 +42,11 @@ const LONGITUDE_DELTA = 0.01;
 const mapStyle = [
   {
     elementType: 'geometry',
-    stylers: [{ color: '#f5f5dc' }], // Map Parchment background
+    stylers: [{ color: '#f5f5dc' }],
   },
   {
     elementType: 'labels.text.fill',
-    stylers: [{ color: '#263238' }], // Deep Charcoal text
+    stylers: [{ color: '#263238' }],
   },
   {
     elementType: 'labels.text.stroke',
@@ -60,22 +65,22 @@ const mapStyle = [
   {
     featureType: 'road.highway',
     elementType: 'geometry',
-    stylers: [{ color: '#FF6F00' }], // Waypoint Orange for highways
+    stylers: [{ color: '#FF6F00' }],
   },
   {
     featureType: 'poi.park',
     elementType: 'geometry',
-    stylers: [{ color: '#c8e6c9' }], // Light green for parks
+    stylers: [{ color: '#c8e6c9' }],
   },
   {
     featureType: 'poi.park',
     elementType: 'labels.text.fill',
-    stylers: [{ color: '#2E7D32' }], // Forest Green text
+    stylers: [{ color: '#2E7D32' }],
   },
   {
     featureType: 'water',
     elementType: 'geometry',
-    stylers: [{ color: '#b3e5fc' }], // Light blue for water
+    stylers: [{ color: '#b3e5fc' }],
   },
   {
     featureType: 'water',
@@ -90,9 +95,7 @@ const WebMapFallback: React.FC = () => {
 
   return (
     <View style={styles.webFallbackContainer}>
-      {/* Decorative map-like background pattern */}
       <View style={styles.webFallbackPattern}>
-        {/* Grid lines */}
         {[...Array(8)].map((_, i) => (
           <View
             key={`h-${i}`}
@@ -113,25 +116,20 @@ const WebMapFallback: React.FC = () => {
         ))}
       </View>
 
-      {/* Central content */}
       <View style={[styles.webFallbackContent, { paddingTop: insets.top + 120 }]}>
-        {/* Pulsing marker preview */}
         <View style={styles.markerPreviewContainer}>
           <PulsingMarker size={32} />
         </View>
 
-        {/* Icon */}
         <View style={styles.webIconContainer}>
           <Ionicons name="map" size={64} color={Colors.primary} />
         </View>
 
-        {/* Message */}
         <Text style={styles.webFallbackTitle}>Explorer Map</Text>
         <Text style={styles.webFallbackSubtitle}>
           Interactive map view is available on mobile devices
         </Text>
 
-        {/* Device indicator */}
         <View style={styles.deviceIndicator}>
           <Ionicons name="phone-portrait-outline" size={20} color={Colors.accent} />
           <Text style={styles.deviceIndicatorText}>
@@ -139,7 +137,6 @@ const WebMapFallback: React.FC = () => {
           </Text>
         </View>
 
-        {/* Feature list */}
         <View style={styles.featureList}>
           <View style={styles.featureItem}>
             <Ionicons name="location" size={18} color={Colors.primary} />
@@ -151,7 +148,7 @@ const WebMapFallback: React.FC = () => {
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="compass" size={18} color={Colors.primary} />
-            <Text style={styles.featureText}>Custom explorer markers</Text>
+            <Text style={styles.featureText}>AI-generated walking quests</Text>
           </View>
         </View>
       </View>
@@ -167,7 +164,27 @@ export default function ExplorerDashboard() {
   const { location, isLoading, errorMsg: locationError } = useLocation();
   const { steps, isAvailable: isPedometerAvailable, errorMsg: pedometerError } = usePedometer();
 
+  const {
+    state: missionState,
+    missions,
+    activeMission,
+    error: missionError,
+    scanForMissions,
+    selectMission,
+    updateMissionProgress,
+    completeMission,
+    cancelMission,
+    dismissMissions,
+  } = useMission();
+
   const isWeb = Platform.OS === 'web';
+
+  // Update mission progress when steps change
+  useEffect(() => {
+    if (activeMission && missionState === 'active') {
+      updateMissionProgress(steps);
+    }
+  }, [steps, activeMission, missionState, updateMissionProgress]);
 
   // Center map on user when location updates (only on native)
   useEffect(() => {
@@ -198,6 +215,22 @@ export default function ExplorerDashboard() {
     }
   };
 
+  const handleScanArea = useCallback(() => {
+    scanForMissions();
+  }, [scanForMissions]);
+
+  const handleSelectMission = useCallback((mission: Mission) => {
+    selectMission(mission, steps);
+  }, [selectMission, steps]);
+
+  const handleCompleteMission = useCallback(() => {
+    completeMission();
+  }, [completeMission]);
+
+  const handleDismissCompletion = useCallback(() => {
+    cancelMission(); // Reset to idle state
+  }, [cancelMission]);
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -208,6 +241,12 @@ export default function ExplorerDashboard() {
       </View>
     );
   }
+
+  const isScanning = missionState === 'scanning';
+  const isSelecting = missionState === 'selecting';
+  const isActive = missionState === 'active';
+  const isCompleted = missionState === 'completed';
+  const showScanButton = missionState === 'idle' || missionState === 'scanning';
 
   return (
     <View style={styles.container}>
@@ -236,7 +275,6 @@ export default function ExplorerDashboard() {
           showsScale={true}
           onMapReady={() => setIsMapReady(true)}
         >
-          {/* Custom User Location Marker */}
           {location && (
             <Marker
               coordinate={{
@@ -257,12 +295,12 @@ export default function ExplorerDashboard() {
       {/* HUD Overlay - Works on all platforms */}
       <ExplorerHUD steps={steps} isAvailable={isPedometerAvailable} />
 
-      {/* Recenter Button - Native only */}
-      {!isWeb && (
+      {/* Recenter Button - Native only, hidden during mission selection */}
+      {!isWeb && !isSelecting && (
         <TouchableOpacity
           style={[
             styles.recenterButton,
-            { bottom: insets.bottom + 120 },
+            { bottom: insets.bottom + (isActive ? 180 : 120) },
           ]}
           onPress={handleCenterOnUser}
           activeOpacity={0.8}
@@ -272,25 +310,51 @@ export default function ExplorerDashboard() {
       )}
 
       {/* Permission/Error Banner */}
-      {(locationError || pedometerError) && !isWeb && (
-        <View style={[styles.errorBanner, { bottom: insets.bottom + 180 }]}>
+      {(locationError || pedometerError || missionError) && !isWeb && !isSelecting && (
+        <View style={[styles.errorBanner, { bottom: insets.bottom + (isActive ? 240 : 180) }]}>
           <Ionicons name="warning" size={16} color={Colors.accent} />
           <Text style={styles.errorText}>
-            {locationError || pedometerError}
+            {missionError || locationError || pedometerError}
           </Text>
         </View>
       )}
 
-      {/* Future Mission Cards placeholder area indicator */}
-      <View
-        style={[
-          styles.missionCardPlaceholder,
-          { bottom: insets.bottom + Spacing.md },
-        ]}
-      >
-        <View style={styles.placeholderLine} />
-        <Text style={styles.placeholderText}>Mission Cards Coming Soon</Text>
-      </View>
+      {/* Scan Area Button - Shown in idle state */}
+      {showScanButton && (
+        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + Spacing.md }]}>
+          <ScanAreaButton
+            onPress={handleScanArea}
+            isScanning={isScanning}
+          />
+        </View>
+      )}
+
+      {/* Quest Card Selection - Shown when missions are generated */}
+      <QuestCardContainer
+        missions={missions}
+        onSelect={handleSelectMission}
+        isVisible={isSelecting}
+        onDismiss={dismissMissions}
+      />
+
+      {/* Active Mission Panel - Shown during active quest */}
+      {activeMission && (
+        <ActiveMissionPanel
+          mission={activeMission}
+          onCancel={cancelMission}
+          onComplete={handleCompleteMission}
+          isVisible={isActive}
+        />
+      )}
+
+      {/* Mission Complete Panel - Celebration screen */}
+      {activeMission && isCompleted && (
+        <MissionCompletePanel
+          mission={activeMission}
+          onDismiss={handleDismissCompletion}
+          isVisible={isCompleted}
+        />
+      )}
     </View>
   );
 }
@@ -350,31 +414,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '500',
   },
-  missionCardPlaceholder: {
+  scanButtonContainer: {
     position: 'absolute',
-    left: Spacing.md,
-    right: Spacing.md,
-    height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: BorderRadius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.primary,
-    opacity: 0.5,
-  },
-  placeholderLine: {
-    width: 40,
-    height: 4,
-    backgroundColor: Colors.primary,
-    borderRadius: 2,
-    marginBottom: Spacing.xs,
-  },
-  placeholderText: {
-    fontSize: FontSizes.sm,
-    color: Colors.primary,
-    fontWeight: '500',
+    left: 0,
+    right: 0,
   },
   // Web fallback styles
   webFallbackContainer: {
