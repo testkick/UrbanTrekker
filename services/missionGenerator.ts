@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import { Mission, MissionVibe } from '@/types/mission';
 
 // Location context for missions
-interface LocationContext {
+export interface LocationContext {
   latitude: number;
   longitude: number;
 }
@@ -36,8 +36,9 @@ const getTimeContext = (): { period: string; mood: string } => {
 
 /**
  * Reverse geocode coordinates to get a readable location name
+ * Exported for use in scan location logging
  */
-const getLocationName = async (coords: LocationContext): Promise<string> => {
+export const getLocationName = async (coords: LocationContext): Promise<string> => {
   try {
     const results = await Location.reverseGeocodeAsync({
       latitude: coords.latitude,

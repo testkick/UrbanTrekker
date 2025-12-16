@@ -539,3 +539,54 @@ export const getUserDeviceId = async (userId: string): Promise<string | null> =>
     return null;
   }
 };
+
+// ============================================
+// SCAN LOCATION LOGGING
+// ============================================
+
+/**
+ * Scan location coordinates type
+ */
+export interface ScanLocationCoords {
+  latitude: number;
+  longitude: number;
+}
+
+/**
+ * Save scan location to user's profile
+ * Called when "Scan Area" is clicked to log the user's location
+ * This is a fire-and-forget operation - errors are logged but not thrown
+ */
+export const saveScanLocation = async (
+  coords: ScanLocationCoords,
+  context: string
+): Promise<void> => {
+  try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      // User not logged in - skip saving to cloud
+      console.log('Scan location not saved: user not logged in');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        last_scan_coords: coords,
+        last_scan_context: context,
+        last_scan_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error saving scan location:', error);
+      return;
+    }
+
+    console.log('Scan location saved:', { coords, context });
+  } catch (error) {
+    console.error('Error saving scan location:', error);
+    // Don't throw - this is a fire-and-forget operation
+  }
+};

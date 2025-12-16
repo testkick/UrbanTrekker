@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { Mission, ActiveMission, MissionState, RouteCoordinate } from '@/types/mission';
-import { generateMissions } from '@/services/missionGenerator';
+import { generateMissions, getLocationName } from '@/services/missionGenerator';
 import { generateRewardText } from '@/services/rewardGenerator';
 import {
   saveCompletedMission,
   updateStatsAfterMission,
+  saveScanLocation,
   CompletedMission,
 } from '@/services/storage';
 
@@ -73,6 +74,22 @@ export const useMission = (): UseMissionResult => {
     try {
       setState('scanning');
       setError(null);
+
+      // If location is provided, log it to Supabase (fire-and-forget)
+      if (location) {
+        // Get location name and save scan location in parallel with mission generation
+        // This is fire-and-forget - we don't await it to avoid blocking the UI
+        getLocationName(location)
+          .then((contextName) => {
+            saveScanLocation(
+              { latitude: location.latitude, longitude: location.longitude },
+              contextName
+            );
+          })
+          .catch((err) => {
+            console.log('Failed to save scan location:', err);
+          });
+      }
 
       // Pass location to generateMissions for context-aware mission generation
       const generatedMissions = await generateMissions(location);

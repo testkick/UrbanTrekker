@@ -1,15 +1,22 @@
 /**
  * MapLib - Native Map Implementation
- * This file is only loaded on iOS/Android with development builds
- * Uses lazy loading to avoid TurboModule crashes in Expo Go
+ * This file is loaded on iOS/Android
+ * Uses extremely lazy loading to avoid TurboModule crashes in Expo Go
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Platform, ViewStyle } from 'react-native';
-import Constants from 'expo-constants';
 
-// Check if we're in Expo Go
-const isExpoGo = Constants?.appOwnership === 'expo';
+// Safely check if we're in Expo Go - must be done synchronously at module load
+let isExpoGo = true; // Default to true for safety
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Constants = require('expo-constants').default;
+  isExpoGo = Constants?.appOwnership === 'expo';
+} catch {
+  // If we can't determine, assume Expo Go for safety
+  isExpoGo = true;
+}
 
 // Fallback component when map isn't available
 const MapFallback: React.FC<{ style?: ViewStyle }> = ({ style }) => (
@@ -22,40 +29,55 @@ const MapFallback: React.FC<{ style?: ViewStyle }> = ({ style }) => (
 );
 
 // Placeholder Marker that renders children
-const PlaceholderMarker: React.FC<{ children?: React.ReactNode }> = ({ children }) => <>{children}</>;
+const PlaceholderMarker: React.FC<{ children?: React.ReactNode; [key: string]: unknown }> = ({ children }) => <>{children}</>;
 
 // Placeholder Polyline that renders nothing
 const PlaceholderPolyline: React.FC<Record<string, unknown>> = () => null;
 
-// Cache for lazy-loaded maps module - only attempt once
-let cachedMaps: typeof import('react-native-maps') | null = null;
+// Type for the cached maps module
+type MapsModule = {
+  default: React.ComponentType<Record<string, unknown>>;
+  Marker: React.ComponentType<Record<string, unknown>>;
+  Polyline: React.ComponentType<Record<string, unknown>>;
+  PROVIDER_GOOGLE: string | undefined;
+};
+
+// Cache for lazy-loaded maps module
+let cachedMaps: MapsModule | null = null;
 let loadAttempted = false;
 let loadSuccessful = false;
 
-// Load maps only in dev builds (not Expo Go)
-const getMaps = (): typeof import('react-native-maps') | null => {
-  // Never try to load in Expo Go
-  if (isExpoGo) {
-    return null;
-  }
-
+// Load maps ONLY in dev builds - this function is never called in Expo Go
+const loadMapsModule = (): MapsModule | null => {
   if (loadAttempted) {
     return loadSuccessful ? cachedMaps : null;
   }
 
   loadAttempted = true;
 
+  // This code path should NEVER be reached in Expo Go
+  // because we check isExpoGo before calling this function
   try {
-    // Dynamic require - only executed in dev builds
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    cachedMaps = require('react-native-maps');
+    // Dynamic require wrapped in eval to prevent Metro from statically analyzing it
+    // This is the safest way to avoid TurboModule initialization in Expo Go
+    const maps = eval('require')('react-native-maps') as MapsModule;
+    cachedMaps = maps;
     loadSuccessful = true;
-    return cachedMaps;
+    return maps;
   } catch (error) {
     console.warn('Failed to load react-native-maps:', error);
     loadSuccessful = false;
     return null;
   }
+};
+
+// Safe getter that respects Expo Go check
+const getMaps = (): MapsModule | null => {
+  // NEVER try to load maps in Expo Go
+  if (isExpoGo) {
+    return null;
+  }
+  return loadMapsModule();
 };
 
 // MapView component with lazy loading
@@ -79,9 +101,10 @@ const MapView = React.forwardRef<View, Record<string, unknown>>((props, ref) => 
       return;
     }
 
+    // Only load maps in development builds
     const maps = getMaps();
     if (maps?.default) {
-      setRNMapView(() => maps.default as unknown as React.ComponentType<Record<string, unknown>>);
+      setRNMapView(() => maps.default);
     }
     setIsReady(true);
   }, [onMapReady]);
@@ -153,7 +176,7 @@ const Marker: React.FC<MarkerProps> = (props) => {
     if (isExpoGo) return PlaceholderMarker;
     const maps = getMaps();
     if (maps?.Marker) {
-      return maps.Marker as unknown as React.ComponentType<Record<string, unknown>>;
+      return maps.Marker as React.ComponentType<Record<string, unknown>>;
     }
     return PlaceholderMarker;
   }, []);
@@ -182,7 +205,7 @@ const Polyline: React.FC<PolylineProps> = (props) => {
     if (isExpoGo) return PlaceholderPolyline;
     const maps = getMaps();
     if (maps?.Polyline) {
-      return maps.Polyline as unknown as React.ComponentType<Record<string, unknown>>;
+      return maps.Polyline as React.ComponentType<Record<string, unknown>>;
     }
     return PlaceholderPolyline;
   }, []);
