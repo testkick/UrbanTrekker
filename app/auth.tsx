@@ -38,16 +38,58 @@ export default function AuthScreen() {
 
   const isSignUp = mode === 'signup';
 
-  const validateInput = (): boolean => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address.');
-      return false;
+  // Common TLD typos to detect
+  const commonTLDTypos: Record<string, string> = {
+    '.con': '.com',
+    '.cmo': '.com',
+    '.ocm': '.com',
+    '.vom': '.com',
+    '.xom': '.com',
+    '.nte': '.net',
+    '.nett': '.net',
+    '.ogr': '.org',
+    '.orgg': '.org',
+    '.gmai.com': '.gmail.com',
+    '.gmial.com': '.gmail.com',
+    '.gamil.com': '.gmail.com',
+    '.yaho.com': '.yahoo.com',
+    '.yahooo.com': '.yahoo.com',
+  };
+
+  const validateEmail = (emailValue: string): { isValid: boolean; message?: string; suggestion?: string } => {
+    const trimmed = emailValue.trim().toLowerCase();
+
+    if (!trimmed) {
+      return { isValid: false, message: 'Please enter your email address.' };
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      Alert.alert('Error', 'Please enter a valid email address.');
+    // Basic format check
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(trimmed)) {
+      // Check for common typos
+      for (const [typo, correction] of Object.entries(commonTLDTypos)) {
+        if (trimmed.endsWith(typo) || trimmed.includes(typo)) {
+          const suggested = trimmed.replace(typo, correction);
+          return {
+            isValid: false,
+            message: `Email address "${emailValue.trim()}" is invalid`,
+            suggestion: `Did you mean "${suggested}"?`,
+          };
+        }
+      }
+      return { isValid: false, message: 'Please enter a valid email address.' };
+    }
+
+    return { isValid: true };
+  };
+
+  const validateInput = (): boolean => {
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      const message = emailValidation.suggestion
+        ? `${emailValidation.message}\n\n${emailValidation.suggestion}`
+        : emailValidation.message || 'Invalid email';
+      Alert.alert('Error', message);
       return false;
     }
 
@@ -69,6 +111,40 @@ export default function AuthScreen() {
     return true;
   };
 
+  // Map Supabase error codes/messages to user-friendly messages
+  const getReadableErrorMessage = (error: { message: string; status?: number }): string => {
+    const message = error.message.toLowerCase();
+
+    // Authentication errors
+    if (message.includes('invalid login credentials') || message.includes('invalid_credentials')) {
+      return 'The email or password you entered is incorrect. Please try again.';
+    }
+    if (message.includes('email not confirmed')) {
+      return 'Please check your email and confirm your account before signing in.';
+    }
+    if (message.includes('user not found') || message.includes('no user found')) {
+      return 'No account found with this email. Would you like to create one?';
+    }
+    if (message.includes('user already registered') || message.includes('already exists')) {
+      return 'An account with this email already exists. Try signing in instead.';
+    }
+    if (message.includes('password') && message.includes('weak')) {
+      return 'Please choose a stronger password with at least 6 characters.';
+    }
+    if (message.includes('rate limit') || message.includes('too many requests')) {
+      return 'Too many attempts. Please wait a moment before trying again.';
+    }
+    if (message.includes('network') || message.includes('fetch')) {
+      return 'Connection error. Please check your internet and try again.';
+    }
+    if (message.includes('invalid email') || message.includes('email invalid')) {
+      return 'Please enter a valid email address.';
+    }
+
+    // Return original message if no match (but capitalize first letter)
+    return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+  };
+
   const handleAuth = async () => {
     if (!validateInput()) return;
 
@@ -80,7 +156,8 @@ export default function AuthScreen() {
         : await signIn(email.trim(), password);
 
       if (error) {
-        Alert.alert('Error', error.message);
+        const readableMessage = getReadableErrorMessage(error);
+        Alert.alert('Error', readableMessage);
       } else {
         if (isSignUp) {
           Alert.alert(
