@@ -112,8 +112,10 @@ export default function AuthScreen() {
   };
 
   // Map Supabase error codes/messages to user-friendly messages
-  const getReadableErrorMessage = (error: { message: string; status?: number }): string => {
-    const message = error.message.toLowerCase();
+  const getReadableErrorMessage = (error: { message?: string; status?: number; code?: string }): string => {
+    // Handle various error formats from Supabase
+    const errorMessage = error?.message || error?.code || 'Unknown error';
+    const message = errorMessage.toLowerCase();
 
     // Authentication errors
     if (message.includes('invalid login credentials') || message.includes('invalid_credentials')) {
@@ -142,7 +144,7 @@ export default function AuthScreen() {
     }
 
     // Return original message if no match (but capitalize first letter)
-    return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1);
   };
 
   const handleAuth = async () => {
