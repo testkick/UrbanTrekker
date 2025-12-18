@@ -43,8 +43,11 @@ const DEFAULT_STATS: UserStats = {
   lastUpdated: new Date().toISOString(),
 };
 
-// Average step length in km
+// Average step length in km (approximately 0.762 meters per step)
 const STEP_LENGTH_KM = 0.000762;
+
+// Storage key for last synced steps
+const STEP_SYNC_KEY = '@stepquest/last_synced_steps';
 
 /**
  * Helper to check if user is authenticated
@@ -331,18 +334,20 @@ export const saveUserStats = async (stats: UserStats): Promise<void> => {
 
 /**
  * Update user stats after completing a mission
+ * NOTE: This only increments totalMissions now.
+ * Step counting is handled by continuous step tracking (incrementLifetimeStats)
  */
 export const updateStatsAfterMission = async (
-  stepsCompleted: number
+  _stepsCompleted: number
 ): Promise<UserStats> => {
   try {
     const currentStats = await getUserStats();
-    const distanceKm = stepsCompleted * STEP_LENGTH_KM;
 
+    // Only increment mission count - steps are tracked continuously by useStepSync
     const updatedStats: UserStats = {
-      totalSteps: currentStats.totalSteps + stepsCompleted,
+      totalSteps: currentStats.totalSteps, // Don't change - handled by step sync
       totalMissions: currentStats.totalMissions + 1,
-      totalDistanceKm: currentStats.totalDistanceKm + distanceKm,
+      totalDistanceKm: currentStats.totalDistanceKm, // Don't change - handled by step sync
       lastUpdated: new Date().toISOString(),
     };
 
@@ -351,6 +356,70 @@ export const updateStatsAfterMission = async (
   } catch (error) {
     console.error('Error updating stats:', error);
     throw error;
+  }
+};
+
+/**
+ * Increment lifetime stats with step delta
+ * Called periodically by useStepSync to record passive step counting
+ */
+export const incrementLifetimeStats = async (stepsDelta: number): Promise<void> => {
+  if (stepsDelta <= 0) return;
+
+  try {
+    const distanceDelta = stepsDelta * STEP_LENGTH_KM;
+    const userId = await getCurrentUserId();
+
+    if (userId) {
+      // Cloud: fetch current stats, add delta, save
+      const currentStats = await getCloudUserStats(userId);
+      const updatedStats: UserStats = {
+        totalSteps: currentStats.totalSteps + stepsDelta,
+        totalMissions: currentStats.totalMissions,
+        totalDistanceKm: currentStats.totalDistanceKm + distanceDelta,
+        lastUpdated: new Date().toISOString(),
+      };
+      await saveCloudUserStats(userId, updatedStats);
+    } else {
+      // Local: fetch current stats, add delta, save
+      const currentStats = await getLocalUserStats();
+      const updatedStats: UserStats = {
+        totalSteps: currentStats.totalSteps + stepsDelta,
+        totalMissions: currentStats.totalMissions,
+        totalDistanceKm: currentStats.totalDistanceKm + distanceDelta,
+        lastUpdated: new Date().toISOString(),
+      };
+      await saveLocalUserStats(updatedStats);
+    }
+
+    console.log(`Lifetime stats incremented: +${stepsDelta} steps, +${distanceDelta.toFixed(4)} km`);
+  } catch (error) {
+    console.error('Error incrementing lifetime stats:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get the last synced total steps value (for step sync tracking)
+ */
+export const getLastSyncedSteps = async (): Promise<number> => {
+  try {
+    const value = await AsyncStorage.getItem(STEP_SYNC_KEY);
+    return value ? parseInt(value, 10) : 0;
+  } catch (error) {
+    console.error('Error getting last synced steps:', error);
+    return 0;
+  }
+};
+
+/**
+ * Save the last synced total steps value
+ */
+export const saveLastSyncedSteps = async (steps: number): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(STEP_SYNC_KEY, steps.toString());
+  } catch (error) {
+    console.error('Error saving last synced steps:', error);
   }
 };
 

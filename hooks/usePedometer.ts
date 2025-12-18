@@ -1,6 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Pedometer } from 'expo-sensors';
 import { Platform } from 'react-native';
+
+// Interval for midnight check (1 minute)
+const MIDNIGHT_CHECK_INTERVAL_MS = 60000;
+
+/**
+ * Get the current date as a string (YYYY-MM-DD) for comparison
+ */
+const getDateString = (date: Date = new Date()): string => {
+  return date.toISOString().split('T')[0];
+};
 
 interface UsePedometerResult {
   steps: number;
@@ -17,10 +27,57 @@ export const usePedometer = (): UsePedometerResult => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [baseSteps, setBaseSteps] = useState(0);
 
+  // Track the last check date for midnight reset
+  const lastCheckDateRef = useRef<string>(getDateString());
+
+  // Store raw steps from pedometer for midnight reset calculation
+  const rawStepsRef = useRef<number>(0);
+
   const resetSteps = useCallback(() => {
-    setBaseSteps((prev) => prev + steps);
+    // Reset base steps to current raw value (effectively zeroing displayed steps)
+    setBaseSteps(rawStepsRef.current);
     setSteps(0);
-  }, [steps]);
+    console.log('Steps reset at midnight or manually');
+  }, []);
+
+  // Midnight reset check
+  useEffect(() => {
+    const checkMidnight = () => {
+      const currentDate = getDateString();
+
+      if (currentDate !== lastCheckDateRef.current) {
+        console.log(`Day changed from ${lastCheckDateRef.current} to ${currentDate}, resetting steps`);
+        lastCheckDateRef.current = currentDate;
+        resetSteps();
+
+        // Re-fetch today's steps from pedometer
+        (async () => {
+          try {
+            const end = new Date();
+            const start = new Date();
+            start.setHours(0, 0, 0, 0);
+
+            const pastStepsResult = await Pedometer.getStepCountAsync(start, end);
+            if (pastStepsResult) {
+              rawStepsRef.current = pastStepsResult.steps;
+              setSteps(pastStepsResult.steps);
+              setBaseSteps(0);
+            }
+          } catch (e) {
+            console.log('Could not refresh step data after midnight');
+          }
+        })();
+      }
+    };
+
+    // Initial check
+    checkMidnight();
+
+    // Set up interval for midnight check
+    const intervalId = setInterval(checkMidnight, MIDNIGHT_CHECK_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [resetSteps]);
 
   useEffect(() => {
     let subscription: { remove: () => void } | null = null;
@@ -59,6 +116,7 @@ export const usePedometer = (): UsePedometerResult => {
         try {
           const pastStepsResult = await Pedometer.getStepCountAsync(start, end);
           if (pastStepsResult) {
+            rawStepsRef.current = pastStepsResult.steps;
             setSteps(pastStepsResult.steps);
             setBaseSteps(0);
           }
@@ -69,6 +127,7 @@ export const usePedometer = (): UsePedometerResult => {
 
         // Subscribe to live step updates
         subscription = Pedometer.watchStepCount((result) => {
+          rawStepsRef.current = result.steps;
           setSteps(result.steps);
         });
       } catch (error) {

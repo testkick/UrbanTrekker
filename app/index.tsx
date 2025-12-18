@@ -20,6 +20,7 @@ import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMis
 import { useLocation } from '@/hooks/useLocation';
 import { usePedometer } from '@/hooks/usePedometer';
 import { useMission } from '@/hooks/useMission';
+import { useStepSync } from '@/hooks/useStepSync';
 import { Mission } from '@/types/mission';
 import { Colors, Spacing, BorderRadius, Shadows, FontSizes } from '@/constants/theme';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '@/components/MapLib';
@@ -152,6 +153,12 @@ export default function ExplorerDashboard() {
 
   const { location, isLoading, errorMsg: locationError } = useLocation();
   const { steps, isAvailable: isPedometerAvailable, errorMsg: pedometerError } = usePedometer();
+
+  // Continuously sync steps to lifetime stats
+  useStepSync({
+    currentSteps: steps,
+    isAvailable: isPedometerAvailable,
+  });
 
   const {
     state: missionState,
