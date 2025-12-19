@@ -18,7 +18,7 @@ interface ExplorerHUDProps {
   dailyGoal?: number;
 }
 
-export const ExplorerHUD: React.FC<ExplorerHUDProps> = ({
+const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
   steps,
   isAvailable,
   dailyGoal = 10000,
@@ -210,5 +210,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
+
+// Memoized to prevent re-renders when parent updates but props don't change
+export const ExplorerHUD = React.memo(ExplorerHUDComponent);
 
 export default ExplorerHUD;

@@ -205,7 +205,7 @@ export default function ExplorerDashboard() {
     }
   }, [location, isMapReady, isWeb]);
 
-  const handleCenterOnUser = () => {
+  const handleCenterOnUser = useCallback(() => {
     if (!isWeb && location && mapRef.current) {
       mapRef.current.animateToRegion(
         {
@@ -217,7 +217,7 @@ export default function ExplorerDashboard() {
         500
       );
     }
-  };
+  }, [isWeb, location]);
 
   const handleScanArea = useCallback(() => {
     // Pass current location for context-aware mission generation

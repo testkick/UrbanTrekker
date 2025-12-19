@@ -18,7 +18,7 @@ interface ScanAreaButtonProps {
   disabled?: boolean;
 }
 
-export const ScanAreaButton: React.FC<ScanAreaButtonProps> = ({
+const ScanAreaButtonComponent: React.FC<ScanAreaButtonProps> = ({
   onPress,
   isScanning,
   disabled = false,
@@ -178,5 +178,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Memoized to prevent re-renders during GPS/step updates
+export const ScanAreaButton = React.memo(ScanAreaButtonComponent);
 
 export default ScanAreaButton;

@@ -34,10 +34,8 @@ const syncDeviceId = async (userId: string): Promise<void> => {
 
     if (deviceId) {
       await updateUserDeviceId(userId, deviceId);
-      console.log('Device ID synced to profile');
     }
-  } catch (error) {
-    console.error('Error syncing device ID:', error);
+  } catch {
     // Don't throw - device ID sync is not critical
   }
 };
@@ -87,16 +85,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         try {
           await syncLocalDataToCloud(data.user.id);
-        } catch (syncError) {
-          console.error('Error syncing local data:', syncError);
+        } catch {
           // Don't fail login if sync fails
         }
 
         // Sync device ID after login
         try {
           await syncDeviceId(data.user.id);
-        } catch (deviceError) {
-          console.error('Error syncing device ID:', deviceError);
+        } catch {
           // Don't fail login if device ID sync fails
         }
       }
@@ -122,16 +118,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         try {
           await syncLocalDataToCloud(data.user.id);
-        } catch (syncError) {
-          console.error('Error syncing local data:', syncError);
+        } catch {
           // Don't fail signup if sync fails
         }
 
         // Sync device ID after signup
         try {
           await syncDeviceId(data.user.id);
-        } catch (deviceError) {
-          console.error('Error syncing device ID:', deviceError);
+        } catch {
           // Don't fail signup if device ID sync fails
         }
       }

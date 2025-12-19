@@ -392,7 +392,6 @@ export const incrementLifetimeStats = async (stepsDelta: number): Promise<void> 
       await saveLocalUserStats(updatedStats);
     }
 
-    console.log(`Lifetime stats incremented: +${stepsDelta} steps, +${distanceDelta.toFixed(4)} km`);
   } catch (error) {
     console.error('Error incrementing lifetime stats:', error);
     throw error;
@@ -503,14 +502,8 @@ export const syncLocalDataToCloud = async (userId: string): Promise<void> => {
       localHistory.length > 0;
 
     if (!hasLocalData) {
-      console.log('No local data to sync');
       return;
     }
-
-    console.log('Syncing local data to cloud...', {
-      stats: localStats,
-      missionsCount: localHistory.length,
-    });
 
     // Get current cloud stats
     const cloudStats = await getCloudUserStats(userId);
@@ -530,9 +523,8 @@ export const syncLocalDataToCloud = async (userId: string): Promise<void> => {
     for (const mission of localHistory) {
       try {
         await saveCloudMission(userId, mission);
-      } catch (error) {
+      } catch {
         // If mission already exists (duplicate ID), skip it
-        console.log('Mission may already exist, skipping:', mission.id);
       }
     }
 
@@ -541,8 +533,6 @@ export const syncLocalDataToCloud = async (userId: string): Promise<void> => {
       STORAGE_KEYS.USER_STATS,
       STORAGE_KEYS.MISSION_HISTORY,
     ]);
-
-    console.log('Local data synced and cleared successfully');
   } catch (error) {
     console.error('Error syncing local data to cloud:', error);
     throw error;
@@ -575,11 +565,8 @@ export const updateUserDeviceId = async (userId: string, deviceId: string): Prom
       .eq('id', userId);
 
     if (error) {
-      console.error('Error updating device ID:', error);
       throw error;
     }
-
-    console.log('Device ID updated successfully');
   } catch (error) {
     console.error('Error updating device ID:', error);
     throw error;
@@ -635,11 +622,10 @@ export const saveScanLocation = async (
 
     if (!userId) {
       // User not logged in - skip saving to cloud
-      console.log('Scan location not saved: user not logged in');
       return;
     }
 
-    const { error } = await supabase
+    await supabase
       .from('profiles')
       .update({
         last_scan_coords: coords,
@@ -647,15 +633,7 @@ export const saveScanLocation = async (
         last_scan_at: new Date().toISOString(),
       })
       .eq('id', userId);
-
-    if (error) {
-      console.error('Error saving scan location:', error);
-      return;
-    }
-
-    console.log('Scan location saved:', { coords, context });
-  } catch (error) {
-    console.error('Error saving scan location:', error);
-    // Don't throw - this is a fire-and-forget operation
+  } catch {
+    // Fire-and-forget - silently ignore errors
   }
 };

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -22,7 +22,7 @@ interface QuestCardProps {
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export const QuestCard: React.FC<QuestCardProps> = ({
+const QuestCardComponent: React.FC<QuestCardProps> = ({
   mission,
   index,
   onSelect,
@@ -68,7 +68,7 @@ export const QuestCard: React.FC<QuestCardProps> = ({
     opacity: opacity.value,
   }));
 
-  const handlePress = () => {
+  const handlePress = useCallback(() => {
     // Animate press feedback
     scale.value = withSpring(0.95, { damping: 15 });
 
@@ -76,13 +76,9 @@ export const QuestCard: React.FC<QuestCardProps> = ({
     // Using setTimeout instead of runOnJS to avoid animation thread issues
     setTimeout(() => {
       scale.value = withSpring(1, { damping: 15 });
-      try {
-        onSelect(mission);
-      } catch (error) {
-        console.error('Error selecting mission:', error);
-      }
+      onSelect(mission);
     }, 100);
-  };
+  }, [mission, onSelect, scale]);
 
   return (
     <AnimatedTouchable
@@ -129,7 +125,7 @@ interface QuestCardContainerProps {
   onDismiss: () => void;
 }
 
-export const QuestCardContainer: React.FC<QuestCardContainerProps> = ({
+const QuestCardContainerComponent: React.FC<QuestCardContainerProps> = ({
   missions,
   onSelect,
   isVisible,
@@ -288,5 +284,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+// Memoized components to prevent unnecessary re-renders
+export const QuestCard = React.memo(QuestCardComponent);
+export const QuestCardContainer = React.memo(QuestCardContainerComponent);
 
 export default QuestCard;

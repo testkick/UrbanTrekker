@@ -82,8 +82,8 @@ export const getLocationName = async (coords: LocationContext): Promise<string> 
     }
 
     return 'Urban Environment';
-  } catch (error) {
-    console.log('Reverse geocoding failed:', error);
+  } catch {
+    // Reverse geocoding failed, use fallback
     return 'Urban Environment';
   }
 };
@@ -107,8 +107,8 @@ const parseAIResponse = (response: string): Omit<Mission, 'id' | 'generatedAt'>[
         stepTarget: Math.round(item.stepTarget / 100) * 100, // Round to nearest 100
       }));
     }
-  } catch (e) {
-    console.log('Failed to parse JSON, using fallback parsing');
+  } catch {
+    // JSON parsing failed, use fallback
   }
 
   // Fallback: Create default missions if parsing fails
@@ -181,7 +181,7 @@ Respond ONLY with a valid JSON array, no other text:
     const response = await generateText({ prompt });
 
     if (!response) {
-      console.log('Empty AI response, using defaults');
+      // Empty AI response, use defaults
       return getDefaultMissions(locationName).map((m) => ({
         ...m,
         id: generateId(),
