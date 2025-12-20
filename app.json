@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "fastshot-app",
-    "slug": "fastshot-app",
+    "name": "Stepquest",
+    "slug": "stepquest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "expoapp",
+    "scheme": "fastshot",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
