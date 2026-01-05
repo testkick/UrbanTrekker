@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,6 +12,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { Mission, VIBE_CONFIG } from '@/types/mission';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface QuestCardProps {
   mission: Mission;
@@ -132,6 +133,7 @@ const QuestCardContainerComponent: React.FC<QuestCardContainerProps> = ({
   onDismiss,
 }) => {
   const backdropOpacity = useSharedValue(0);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     backdropOpacity.value = withTiming(isVisible ? 1 : 0, { duration: 300 });
@@ -151,15 +153,23 @@ const QuestCardContainerComponent: React.FC<QuestCardContainerProps> = ({
       </Animated.View>
 
       {/* Cards Container */}
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: insets.bottom + Spacing.lg }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Choose Your Quest</Text>
+          <View>
+            <Text style={styles.headerTitle}>Choose Your Quest</Text>
+            <Text style={styles.headerSubtitle}>{missions.length} adventures await</Text>
+          </View>
           <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={Colors.text} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.cardsWrapper}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.cardsWrapper}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+        >
           {missions.map((mission, index) => (
             <QuestCard
               key={mission.id}
@@ -169,7 +179,7 @@ const QuestCardContainerComponent: React.FC<QuestCardContainerProps> = ({
               isVisible={isVisible}
             />
           ))}
-        </View>
+        </ScrollView>
       </View>
     </>
   );
@@ -191,13 +201,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
+    maxHeight: '75%', // Limit to 75% of screen height
     ...Shadows.large,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
   },
@@ -205,6 +215,12 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xl,
     fontWeight: '700',
     color: Colors.text,
+  },
+  headerSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    opacity: 0.6,
+    marginTop: 2,
   },
   closeButton: {
     width: 36,
@@ -214,8 +230,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  scrollView: {
+    flex: 1,
+  },
   cardsWrapper: {
     paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
   card: {
