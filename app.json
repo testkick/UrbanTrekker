@@ -77,7 +77,8 @@
         {
           "motionPermission": "Stepquest needs access to your motion data to count your steps and track your walking progress."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -86,7 +87,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "6c1e45db-087a-419f-9928-947944585348"
+        "projectId": "43cee8ce-b70e-437d-9deb-c8f12bdae251"
       }
     },
     "owner": "glougheed"
