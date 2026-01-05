@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Pedometer } from 'expo-sensors';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 
 // Interval for midnight check (1 minute)
 const MIDNIGHT_CHECK_INTERVAL_MS = 60000;
@@ -33,40 +33,66 @@ export const usePedometer = (): UsePedometerResult => {
   // Store raw steps from pedometer for midnight reset calculation
   const rawStepsRef = useRef<number>(0);
 
-  const resetSteps = useCallback(() => {
+  /**
+   * Fetch step count from midnight of current day until now
+   * This ensures we always display the user's actual daily total
+   */
+  const fetchTodaySteps = useCallback(async () => {
+    try {
+      const end = new Date();
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+
+      const pastStepsResult = await Pedometer.getStepCountAsync(start, end);
+      if (pastStepsResult && pastStepsResult.steps >= 0) {
+        console.log(`Fetched today's steps from midnight: ${pastStepsResult.steps}`);
+        rawStepsRef.current = pastStepsResult.steps;
+        setSteps(pastStepsResult.steps);
+        setBaseSteps(0);
+        return pastStepsResult.steps;
+      }
+    } catch (e) {
+      console.log('Could not fetch today\'s step data:', e);
+    }
+    return 0;
+  }, []);
+
+  const resetSteps = useCallback(async () => {
     // Reset base steps to current raw value (effectively zeroing displayed steps)
     setBaseSteps(rawStepsRef.current);
     setSteps(0);
     console.log('Steps reset at midnight or manually');
-  }, []);
+
+    // Re-fetch today's steps from midnight
+    await fetchTodaySteps();
+  }, [fetchTodaySteps]);
+
+  // App State listener - Re-sync steps when app comes to foreground
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        console.log('App became active, re-syncing step data from midnight');
+        // Re-fetch today's steps whenever app comes to foreground
+        await fetchTodaySteps();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchTodaySteps]);
 
   // Midnight reset check
   useEffect(() => {
-    const checkMidnight = () => {
+    const checkMidnight = async () => {
       const currentDate = getDateString();
 
       if (currentDate !== lastCheckDateRef.current) {
         console.log(`Day changed from ${lastCheckDateRef.current} to ${currentDate}, resetting steps`);
         lastCheckDateRef.current = currentDate;
-        resetSteps();
-
-        // Re-fetch today's steps from pedometer
-        (async () => {
-          try {
-            const end = new Date();
-            const start = new Date();
-            start.setHours(0, 0, 0, 0);
-
-            const pastStepsResult = await Pedometer.getStepCountAsync(start, end);
-            if (pastStepsResult) {
-              rawStepsRef.current = pastStepsResult.steps;
-              setSteps(pastStepsResult.steps);
-              setBaseSteps(0);
-            }
-          } catch (e) {
-            console.log('Could not refresh step data after midnight');
-          }
-        })();
+        await resetSteps();
       }
     };
 
@@ -81,6 +107,8 @@ export const usePedometer = (): UsePedometerResult => {
 
   useEffect(() => {
     let subscription: { remove: () => void } | null = null;
+    let watchStartSteps = 0; // Track steps when watch started
+    let dailyBaseSteps = 0; // Track the daily total when watch started
 
     const subscribe = async () => {
       try {
@@ -108,27 +136,29 @@ export const usePedometer = (): UsePedometerResult => {
           return;
         }
 
-        // Get step count from midnight today
-        const end = new Date();
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-
-        try {
-          const pastStepsResult = await Pedometer.getStepCountAsync(start, end);
-          if (pastStepsResult) {
-            rawStepsRef.current = pastStepsResult.steps;
-            setSteps(pastStepsResult.steps);
-            setBaseSteps(0);
-          }
-        } catch (e) {
-          // Historical data might not be available
-          console.log('Could not get historical step data');
-        }
+        // Get step count from midnight today - this ensures we display the user's
+        // actual daily total immediately upon app launch
+        const todaySteps = await fetchTodaySteps();
+        dailyBaseSteps = todaySteps;
 
         // Subscribe to live step updates
+        // watchStepCount returns incremental steps since the subscription started
         subscription = Pedometer.watchStepCount((result) => {
-          rawStepsRef.current = result.steps;
-          setSteps(result.steps);
+          // First update from watchStepCount - record the baseline
+          if (watchStartSteps === 0) {
+            watchStartSteps = result.steps;
+          }
+
+          // Calculate the new steps since watch started
+          const newStepsSinceWatch = result.steps - watchStartSteps;
+
+          // Update the total: daily base + new steps since watch started
+          const updatedTotal = dailyBaseSteps + newStepsSinceWatch;
+
+          rawStepsRef.current = updatedTotal;
+          setSteps(updatedTotal);
+
+          console.log(`Live update: Base=${dailyBaseSteps}, Watch delta=${newStepsSinceWatch}, Total=${updatedTotal}`);
         });
       } catch (error) {
         setErrorMsg('Failed to initialize pedometer');
@@ -143,7 +173,7 @@ export const usePedometer = (): UsePedometerResult => {
         subscription.remove();
       }
     };
-  }, []);
+  }, [fetchTodaySteps]);
 
   return {
     steps: steps - baseSteps,
