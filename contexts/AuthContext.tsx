@@ -7,7 +7,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { syncLocalDataToCloud, updateUserDeviceId } from '@/services/storage';
-import { initializeDeviceTracking, getDeviceId } from '@/services/device';
+import { getAnonymousDeviceId, initializeAnonymousDeviceId } from '@/services/anonymousDeviceId';
 
 interface AuthContextType {
   user: User | null;
@@ -22,15 +22,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
- * Sync device ID to user profile
+ * Sync anonymous device ID to user profile
+ * Uses privacy-respecting UUID, not advertising identifiers
  */
 const syncDeviceId = async (userId: string): Promise<void> => {
   try {
-    // Initialize device tracking (requests ATT permission on iOS)
-    await initializeDeviceTracking();
-
-    // Get device ID
-    const deviceId = await getDeviceId();
+    // Get the anonymous device ID (UUID-based, not IDFA)
+    const deviceId = await getAnonymousDeviceId();
 
     if (deviceId) {
       await updateUserDeviceId(userId, deviceId);
@@ -44,6 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize anonymous device ID on app startup
+  useEffect(() => {
+    // Initialize the device ID system (generates UUID if first launch)
+    initializeAnonymousDeviceId().catch((err) => {
+      console.error('Failed to initialize anonymous device ID:', err);
+    });
+  }, []);
 
   useEffect(() => {
     // Get initial session

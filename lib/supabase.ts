@@ -73,4 +73,5 @@ export interface MissionRow {
   duration_minutes: number;
   created_at: string;
   route_coordinates: RouteCoordinateRow[] | null;
+  device_id: string | null; // Anonymous device ID for journey analytics
 }

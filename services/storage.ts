@@ -6,6 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MissionVibe, RouteCoordinate } from '@/types/mission';
 import { supabase, ProfileRow, MissionRow } from '@/lib/supabase';
+import { getAnonymousDeviceId } from '@/services/anonymousDeviceId';
 
 // Storage Keys
 const STORAGE_KEYS = {
@@ -228,9 +229,13 @@ const getCloudMissionHistory = async (userId: string): Promise<CompletedMission[
 
 /**
  * Save mission to Supabase
+ * Includes anonymous device ID for journey analytics
  */
 const saveCloudMission = async (userId: string, mission: CompletedMission): Promise<void> => {
   try {
+    // Get the anonymous device ID for tagging
+    const deviceId = await getAnonymousDeviceId();
+
     const { error } = await supabase
       .from('missions')
       .insert({
@@ -245,6 +250,7 @@ const saveCloudMission = async (userId: string, mission: CompletedMission): Prom
         completed_at: mission.completedAt,
         duration_minutes: mission.durationMinutes,
         route_coordinates: mission.routeCoordinates || [],
+        device_id: deviceId, // Tag with anonymous device ID
       });
 
     if (error) {
@@ -611,6 +617,7 @@ export interface ScanLocationCoords {
 /**
  * Save scan location to user's profile
  * Called when "Scan Area" is clicked to log the user's location
+ * Includes anonymous device ID for journey analytics
  * This is a fire-and-forget operation - errors are logged but not thrown
  */
 export const saveScanLocation = async (
@@ -625,12 +632,16 @@ export const saveScanLocation = async (
       return;
     }
 
+    // Get the anonymous device ID for tagging
+    const deviceId = await getAnonymousDeviceId();
+
     await supabase
       .from('profiles')
       .update({
         last_scan_coords: coords,
         last_scan_context: context,
         last_scan_at: new Date().toISOString(),
+        device_id: deviceId, // Tag with anonymous device ID
       })
       .eq('id', userId);
   } catch {
