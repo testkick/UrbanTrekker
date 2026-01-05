@@ -19,6 +19,7 @@ import { QuestCardContainer } from '@/components/QuestCard';
 import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
 import { useLocation } from '@/hooks/useLocation';
 import { usePedometer } from '@/hooks/usePedometer';
+import { useBattery } from '@/hooks/useBattery';
 import { useMission } from '@/hooks/useMission';
 import { useStepSync } from '@/hooks/useStepSync';
 import { Mission } from '@/types/mission';
@@ -153,6 +154,7 @@ export default function ExplorerDashboard() {
 
   const { location, isLoading, errorMsg: locationError } = useLocation();
   const { steps, isAvailable: isPedometerAvailable, errorMsg: pedometerError } = usePedometer();
+  const { batteryLevel, isAvailable: isBatteryAvailable, errorMsg: batteryError } = useBattery();
 
   // Continuously sync steps to lifetime stats
   useStepSync({
@@ -317,7 +319,12 @@ export default function ExplorerDashboard() {
       )}
 
       {/* HUD Overlay - Works on all platforms */}
-      <ExplorerHUD steps={steps} isAvailable={isPedometerAvailable} />
+      <ExplorerHUD
+        steps={steps}
+        isAvailable={isPedometerAvailable}
+        batteryLevel={batteryLevel}
+        isBatteryAvailable={isBatteryAvailable}
+      />
 
       {/* Recenter Button - Native only, hidden during mission selection */}
       {!isWeb && !isSelecting && (
@@ -348,11 +355,11 @@ export default function ExplorerDashboard() {
       )}
 
       {/* Permission/Error Banner */}
-      {(locationError || pedometerError || missionError) && !isWeb && !isSelecting && (
+      {(locationError || pedometerError || batteryError || missionError) && !isWeb && !isSelecting && (
         <View style={[styles.errorBanner, { bottom: insets.bottom + (isActive ? 240 : 180) }]}>
           <Ionicons name="warning" size={16} color={Colors.accent} />
           <Text style={styles.errorText}>
-            {missionError || locationError || pedometerError}
+            {missionError || locationError || pedometerError || batteryError}
           </Text>
         </View>
       )}

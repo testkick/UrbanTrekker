@@ -9,23 +9,27 @@ import {
   FontSizes,
   BorderRadius,
   stepsToKm,
-  calculateEnergyLevel,
 } from '@/constants/theme';
 
 interface ExplorerHUDProps {
   steps: number;
   isAvailable: boolean;
+  batteryLevel: number; // 0.0 to 1.0
+  isBatteryAvailable: boolean;
   dailyGoal?: number;
 }
 
 const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
   steps,
   isAvailable,
+  batteryLevel,
+  isBatteryAvailable,
   dailyGoal = 10000,
 }) => {
   const insets = useSafeAreaInsets();
   const distance = stepsToKm(steps);
-  const energyLevel = calculateEnergyLevel(steps, dailyGoal);
+  // Convert battery level (0.0-1.0) to percentage (0-100)
+  const energyLevel = Math.round(batteryLevel * 100);
 
   const getEnergyColor = (level: number) => {
     if (level >= 70) return Colors.energyHigh;
@@ -97,7 +101,7 @@ const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
                 />
               </View>
               <Text style={styles.statLabel}>
-                {isAvailable ? `${energyLevel}%` : 'ENERGY'}
+                {isBatteryAvailable ? `${energyLevel}%` : 'ENERGY'}
               </Text>
             </View>
           </View>
