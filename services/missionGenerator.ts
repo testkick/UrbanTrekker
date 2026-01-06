@@ -35,10 +35,36 @@ const getTimeContext = (): { period: string; mood: string } => {
 };
 
 /**
- * Reverse geocode coordinates to get a readable location name
- * Exported for use in scan location logging
+ * Detailed location context with rich environmental data
  */
-export const getLocationName = async (coords: LocationContext): Promise<string> => {
+export interface DetailedLocationContext {
+  displayName: string; // Human-readable name for display
+  neighborhood: string | null; // District/subregion
+  street: string | null; // Street name
+  city: string | null; // City name
+  region: string | null; // State/province
+  landmark: string | null; // Named landmark if available
+  postalCode: string | null; // Postal code for granularity
+}
+
+/**
+ * Environment type classifications for adaptive mission generation
+ */
+export type EnvironmentType =
+  | 'coastal' // Waterfront, beaches, seawalls
+  | 'urban' // Dense city centers, business districts
+  | 'suburban' // Residential neighborhoods
+  | 'historic' // Old town areas with heritage architecture
+  | 'park' // Green spaces, natural areas
+  | 'industrial' // Warehouses, factories (for unique urban exploration)
+  | 'mixed' // Diverse urban fabric
+  | 'unknown'; // Default fallback
+
+/**
+ * Enhanced reverse geocoding with detailed location components
+ * Extracts rich contextual data for immersive mission generation
+ */
+export const getDetailedLocation = async (coords: LocationContext): Promise<DetailedLocationContext> => {
   try {
     const results = await Location.reverseGeocodeAsync({
       latitude: coords.latitude,
@@ -48,44 +74,156 @@ export const getLocationName = async (coords: LocationContext): Promise<string> 
     if (results && results.length > 0) {
       const place = results[0];
 
-      // Build a descriptive location string
-      const parts: string[] = [];
+      // Extract all available components
+      const neighborhood = place.subregion || place.district || null;
+      const street = place.street || null;
+      const city = place.city || null;
+      const region = place.region || null;
+      const landmark = (place.name && place.name !== place.street) ? place.name : null;
+      const postalCode = place.postalCode || null;
 
-      // Add neighborhood/district if available
-      if (place.subregion) {
-        parts.push(place.subregion);
-      } else if (place.district) {
-        parts.push(place.district);
-      } else if (place.name && place.name !== place.street) {
-        parts.push(place.name);
+      // Build display name (most specific to least specific)
+      let displayName = 'Urban Environment';
+      if (landmark) {
+        displayName = landmark + (city ? `, ${city}` : '');
+      } else if (neighborhood) {
+        displayName = neighborhood + (city ? `, ${city}` : '');
+      } else if (street && city) {
+        displayName = `near ${street}, ${city}`;
+      } else if (city) {
+        displayName = city;
+      } else if (region) {
+        displayName = region;
       }
 
-      // Add city
-      if (place.city) {
-        parts.push(place.city);
-      }
-
-      // If we have parts, join them
-      if (parts.length > 0) {
-        return parts.join(', ');
-      }
-
-      // Fallback to street if available
-      if (place.street) {
-        return `near ${place.street}${place.city ? `, ${place.city}` : ''}`;
-      }
-
-      // Ultimate fallback
-      if (place.region) {
-        return place.region;
-      }
+      return {
+        displayName,
+        neighborhood,
+        street,
+        city,
+        region,
+        landmark,
+        postalCode,
+      };
     }
 
-    return 'Urban Environment';
+    return {
+      displayName: 'Urban Environment',
+      neighborhood: null,
+      street: null,
+      city: null,
+      region: null,
+      landmark: null,
+      postalCode: null,
+    };
   } catch {
-    // Reverse geocoding failed, use fallback
-    return 'Urban Environment';
+    return {
+      displayName: 'Urban Environment',
+      neighborhood: null,
+      street: null,
+      city: null,
+      region: null,
+      landmark: null,
+      postalCode: null,
+    };
   }
+};
+
+/**
+ * Legacy function for backward compatibility
+ */
+export const getLocationName = async (coords: LocationContext): Promise<string> => {
+  const detailed = await getDetailedLocation(coords);
+  return detailed.displayName;
+};
+
+/**
+ * Detect environment type based on location keywords and patterns
+ * This helps tailor mission narratives to the specific atmosphere
+ */
+const detectEnvironmentType = (location: DetailedLocationContext): EnvironmentType => {
+  const searchText = [
+    location.displayName,
+    location.neighborhood,
+    location.landmark,
+    location.street,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  // Coastal indicators
+  if (
+    searchText.includes('beach') ||
+    searchText.includes('seawall') ||
+    searchText.includes('waterfront') ||
+    searchText.includes('bay') ||
+    searchText.includes('coast') ||
+    searchText.includes('harbor') ||
+    searchText.includes('marina') ||
+    searchText.includes('pier')
+  ) {
+    return 'coastal';
+  }
+
+  // Park/Natural indicators
+  if (
+    searchText.includes('park') ||
+    searchText.includes('forest') ||
+    searchText.includes('trail') ||
+    searchText.includes('garden') ||
+    searchText.includes('green') ||
+    searchText.includes('nature')
+  ) {
+    return 'park';
+  }
+
+  // Historic indicators
+  if (
+    searchText.includes('old town') ||
+    searchText.includes('historic') ||
+    searchText.includes('heritage') ||
+    searchText.includes('colonial') ||
+    searchText.includes('downtown') ||
+    searchText.includes('gastown') ||
+    searchText.includes('chinatown')
+  ) {
+    return 'historic';
+  }
+
+  // Urban indicators
+  if (
+    searchText.includes('financial') ||
+    searchText.includes('business') ||
+    searchText.includes('downtown') ||
+    searchText.includes('central') ||
+    searchText.includes('plaza') ||
+    searchText.includes('square')
+  ) {
+    return 'urban';
+  }
+
+  // Suburban indicators
+  if (
+    searchText.includes('residential') ||
+    searchText.includes('heights') ||
+    searchText.includes('hills') ||
+    searchText.includes('estates')
+  ) {
+    return 'suburban';
+  }
+
+  // Industrial indicators
+  if (
+    searchText.includes('industrial') ||
+    searchText.includes('warehouse') ||
+    searchText.includes('port')
+  ) {
+    return 'industrial';
+  }
+
+  // Default to mixed urban environment
+  return 'mixed';
 };
 
 // Generate unique ID
@@ -106,8 +244,8 @@ const parseAIResponse = (response: string): Omit<Mission, 'id' | 'generatedAt'>[
 
       // Validate that we have an array
       if (!Array.isArray(parsed)) {
-        console.warn('AI response is not an array, using defaults');
-        return getDefaultMissions();
+        console.warn('AI response is not an array');
+        return []; // Return empty, let caller handle defaults
       }
 
       // Map and validate each mission
@@ -148,22 +286,35 @@ const parseAIResponse = (response: string): Omit<Mission, 'id' | 'generatedAt'>[
     console.error('Failed to parse AI response:', error);
   }
 
-  // Fallback: Create default missions if parsing fails
-  console.log('Using default missions as fallback');
-  return getDefaultMissions();
+  // Return empty array, let caller handle defaults with proper context
+  return [];
 };
 
-// Default missions as fallback (2 per vibe = 6 total)
-const getDefaultMissions = (locationName?: string): Omit<Mission, 'id' | 'generatedAt'>[] => {
+// Environment-aware default missions as fallback (2 per vibe = 6 total)
+const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omit<Mission, 'id' | 'generatedAt'>[] => {
   const { period } = getTimeContext();
   const location = locationName || 'your neighborhood';
+
+  // Customize defaults based on environment type
+  const environmentSuffix: Record<EnvironmentType, string> = {
+    coastal: 'along the waterfront',
+    park: 'through the green spaces',
+    historic: 'past historic architecture',
+    urban: 'through the city streets',
+    suburban: 'around the neighborhood',
+    industrial: 'through the urban landscape',
+    mixed: 'through diverse streets',
+    unknown: 'around the area',
+  };
+
+  const suffix = environmentSuffix[envType];
 
   return [
     // Chill missions (2)
     {
       vibe: 'chill' as MissionVibe,
       title: `The ${period.charAt(0).toUpperCase() + period.slice(1)} Stroll`,
-      description: `Take a peaceful walk through ${location}. No rush, just enjoy the journey and let your mind wander freely.`,
+      description: `Take a peaceful walk ${suffix} of ${location}. No rush, just enjoy the journey and let your mind wander freely.`,
       stepTarget: 1000,
     },
     {
@@ -176,7 +327,7 @@ const getDefaultMissions = (locationName?: string): Omit<Mission, 'id' | 'genera
     {
       vibe: 'discovery' as MissionVibe,
       title: `Urban Explorer's Path`,
-      description: `Venture beyond your usual routes in ${location}. Find a street you've never walked, a building you've never noticed.`,
+      description: `Venture beyond your usual routes in ${location}. Find streets you've never walked, discover hidden corners.`,
       stepTarget: 2400,
     },
     {
@@ -189,7 +340,7 @@ const getDefaultMissions = (locationName?: string): Omit<Mission, 'id' | 'genera
     {
       vibe: 'workout' as MissionVibe,
       title: `The Endurance Trial`,
-      description: `Push your limits with this challenging trek around ${location}. Maintain a brisk pace and feel the energy surge.`,
+      description: `Push your limits with this challenging trek ${suffix}. Maintain a brisk pace and feel the energy surge.`,
       stepTarget: 5000,
     },
     {
@@ -202,37 +353,153 @@ const getDefaultMissions = (locationName?: string): Omit<Mission, 'id' | 'genera
 };
 
 /**
- * Generate walking missions using Newell AI
+ * Generate environment-specific descriptive hints for the AI
+ * These help the AI create missions that match the location's character
+ */
+const getEnvironmentDescriptors = (envType: EnvironmentType): string => {
+  switch (envType) {
+    case 'coastal':
+      return 'This is a COASTAL environment. Missions should reference: ocean views, sea breezes, waterfront paths, shoreline sounds, salt air, maritime atmosphere, waves, tides, nautical features, beach trails, coastal landmarks, harbor views, or seaside promenades.';
+    case 'park':
+      return 'This is a PARK/NATURAL environment. Missions should reference: tree canopies, garden paths, natural trails, birdsong, green spaces, flowering plants, fresh air, woodland atmosphere, park benches, open meadows, shaded groves, or natural landmarks.';
+    case 'historic':
+      return 'This is a HISTORIC district. Missions should reference: heritage architecture, cobblestone streets, vintage buildings, cultural landmarks, historic plaques, old-world charm, architectural details, preserved facades, time-worn pathways, or stories etched in stone.';
+    case 'urban':
+      return 'This is an URBAN/BUSINESS district. Missions should reference: glass towers, modern architecture, bustling sidewalks, street art, urban energy, city rhythms, contemporary design, office buildings, plazas, street performers, cafes, or metropolitan atmosphere.';
+    case 'suburban':
+      return 'This is a RESIDENTIAL/SUBURBAN area. Missions should reference: tree-lined streets, neighborhood character, residential architecture, community parks, quiet sidewalks, local shops, residential charm, peaceful boulevards, or neighborhood landmarks.';
+    case 'industrial':
+      return 'This is an INDUSTRIAL area. Missions should reference: warehouse conversions, raw urban texture, brick facades, industrial heritage, creative districts, converted spaces, street art, urban renewal, gritty charm, or repurposed architecture.';
+    case 'mixed':
+      return 'This is a MIXED URBAN environment. Missions should reference: diverse streetscapes, varied architecture, neighborhood transitions, eclectic shops, urban texture, local character, street-level discoveries, or the unique blend of old and new.';
+    default:
+      return 'This is an URBAN environment. Missions should reference: local architecture, street character, neighborhood atmosphere, urban landmarks, city textures, or distinctive features of the area.';
+  }
+};
+
+/**
+ * Generate vibe-specific tone guidance for adaptive mission narratives
+ */
+const getVibeToneGuidance = (vibe: MissionVibe, envType: EnvironmentType): string => {
+  const guides: Record<MissionVibe, Record<EnvironmentType, string>> = {
+    chill: {
+      coastal: 'TONE: Serene and meditative. Emphasize the calming rhythm of waves, peaceful ocean presence, gentle sea breezes.',
+      park: 'TONE: Tranquil and restorative. Focus on natural peace, quiet contemplation under trees, gentle bird melodies.',
+      historic: 'TONE: Contemplative and timeless. Highlight the peaceful presence of history, quiet cobblestone charm, slow-paced reflection.',
+      urban: 'TONE: Mindful urban zen. Find calm amid city energy, peaceful people-watching, moments of stillness in motion.',
+      suburban: 'TONE: Neighborly and comfortable. Emphasize community warmth, familiar paths, friendly residential rhythms.',
+      industrial: 'TONE: Quietly creative. Discover unexpected peace in raw spaces, contemplative urban textures, artistic serenity.',
+      mixed: 'TONE: Eclectic calm. Blend diverse atmospheres, find peace in variety, relaxed neighborhood exploration.',
+      unknown: 'TONE: Peaceful and mindful. Focus on relaxation, gentle observation, stress-free exploration.',
+    },
+    discovery: {
+      coastal: 'TONE: Adventurous exploration. Hunt for hidden beach access, discover maritime history, find unique shoreline features.',
+      park: 'TONE: Nature detective. Seek hidden trails, discover natural wonders, find secret garden corners, explore ecological diversity.',
+      historic: 'TONE: Urban archaeologist. Uncover architectural secrets, discover historical narratives, find hidden heritage details, explore time layers.',
+      urban: 'TONE: Modern explorer. Hunt for street art, discover architectural innovation, find hidden plazas, explore cultural hotspots.',
+      suburban: 'TONE: Neighborhood curator. Discover community gems, find local secrets, explore residential character, uncover hidden parks.',
+      industrial: 'TONE: Creative scout. Seek artistic transformations, discover warehouse culture, find design innovations, explore urban evolution.',
+      mixed: 'TONE: Urban anthropologist. Document neighborhood diversity, discover cultural intersections, explore eclectic character.',
+      unknown: 'TONE: Curious explorer. Emphasize discovery, finding the unexpected, uncovering local secrets, observant wandering.',
+    },
+    workout: {
+      coastal: 'TONE: Athletic challenge against elements. Power through coastal winds, conquer waterfront terrain, build stamina with ocean views.',
+      park: 'TONE: Natural athlete. Tackle park hills, power through trails, build endurance in fresh air, challenge yourself in nature.',
+      historic: 'TONE: Heritage warrior. Conquer historic hills, power through ancient streets, build strength with cultural motivation, determined pace.',
+      urban: 'TONE: Urban athlete. Dominate city blocks, power through metropolitan energy, maintain intensity, claim the streets.',
+      suburban: 'TONE: Neighborhood champion. Master residential routes, power through community pride, build local endurance, own your territory.',
+      industrial: 'TONE: Gritty determination. Tackle raw urban terrain, power through industrial grit, build resilience, embrace the edge.',
+      mixed: 'TONE: Versatile warrior. Adapt to changing terrain, power through diverse environments, build all-around stamina.',
+      unknown: 'TONE: Determined challenge. Focus on pushing limits, building endurance, maintaining pace, achieving strength goals.',
+    },
+  };
+
+  return guides[vibe][envType] || guides[vibe].unknown;
+};
+
+/**
+ * Generate walking missions using Newell AI with deep location awareness
  * @param location Optional GPS coordinates for location-aware missions
  */
 export const generateMissions = async (location?: LocationContext): Promise<Mission[]> => {
   const { period, mood } = getTimeContext();
 
-  // Get location name from coordinates if provided
-  let locationName = 'Urban Environment';
+  // Get detailed location context
+  let locationDetails: DetailedLocationContext = {
+    displayName: 'Urban Environment',
+    neighborhood: null,
+    street: null,
+    city: null,
+    region: null,
+    landmark: null,
+    postalCode: null,
+  };
+
+  let environmentType: EnvironmentType = 'unknown';
+
   if (location) {
-    locationName = await getLocationName(location);
+    locationDetails = await getDetailedLocation(location);
+    environmentType = detectEnvironmentType(locationDetails);
   }
 
-  const prompt = `You are a creative quest designer for an urban exploration walking app called Stepquest. Generate 6 unique walking missions for a user during the ${period} (the mood is ${mood}).
+  // Build rich location context for AI
+  const locationContext = [
+    `PRIMARY LOCATION: ${locationDetails.displayName}`,
+    locationDetails.neighborhood ? `NEIGHBORHOOD: ${locationDetails.neighborhood}` : null,
+    locationDetails.street ? `STREET AREA: ${locationDetails.street}` : null,
+    locationDetails.landmark ? `LANDMARK: ${locationDetails.landmark}` : null,
+  ].filter(Boolean).join('\n');
 
-The user is currently at ${locationName}. IMPORTANT: Each mission MUST incorporate this specific environment into its narrative. Reference local landmarks, neighborhood characteristics, street names, parks, or distinctive features of ${locationName}. Make the player feel like they're embarking on a location-specific adventure, not a generic walk.
+  // Get environment-specific descriptors
+  const envDescriptors = getEnvironmentDescriptors(environmentType);
 
-Generate TWO distinct missions for each of these three vibes:
-1. CHILL (2 missions) - Short, relaxing walks (800-1500 steps each, different targets)
-2. DISCOVERY (2 missions) - Scenic exploration walks (2000-3500 steps each, different targets)
-3. WORKOUT (2 missions) - Challenging fitness walks (4000-7000 steps each, different targets)
+  // Comprehensive immersive prompt
+  const prompt = `You are a LOCAL ADVENTURE GUIDE and URBAN EXPLORER NARRATOR creating personalized walking quests for Stepquest explorers.
 
-For each mission, provide:
-- vibe: exactly one of "chill", "discovery", or "workout"
-- title: A creative, evocative quest name that references ${locationName} or its features (max 35 chars)
-- description: An immersive narrative that weaves in the ${locationName} environment - mention specific area types, landmarks, or atmosphere (2-3 sentences, max 150 chars)
-- stepTarget: A specific integer step goal within the vibe's range (ensure each pair of missions in the same vibe has different targets)
+🌍 LOCATION INTELLIGENCE:
+${locationContext}
 
-Example for a coastal area:
-{"vibe": "chill", "title": "The Seawall Sunset Stroll", "description": "Walk along the Kitsilano Seawall as golden light dances on the waves. Let the ocean breeze guide your peaceful journey.", "stepTarget": 1000}
+ENVIRONMENT TYPE: ${environmentType.toUpperCase()}
+${envDescriptors}
 
-Respond ONLY with a valid JSON array of 6 missions, no other text:
+TIME CONTEXT: ${period} (atmosphere: ${mood})
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 YOUR MISSION: Generate 6 DEEPLY LOCATION-SPECIFIC walking adventures that capture the SOUL of this exact place.
+
+CRITICAL REQUIREMENTS:
+✓ Every mission MUST feel like it could ONLY happen in ${locationDetails.displayName}
+✓ Reference SPECIFIC environmental features (NOT generic "walk around")
+✓ Use sensory details: what they'll see, hear, smell, feel
+✓ Incorporate LOCAL character and atmosphere
+✓ Make each mission a STORY, not just a walk
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate TWO missions for each vibe:
+
+1️⃣ CHILL (2 missions) - Peaceful, meditative walks (800-1500 steps each)
+${getVibeToneGuidance('chill', environmentType)}
+
+2️⃣ DISCOVERY (2 missions) - Exploratory, curiosity-driven walks (2000-3500 steps each)
+${getVibeToneGuidance('discovery', environmentType)}
+
+3️⃣ WORKOUT (2 missions) - High-energy, challenging walks (4000-7000 steps each)
+${getVibeToneGuidance('workout', environmentType)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FORMAT REQUIREMENTS:
+- vibe: "chill" | "discovery" | "workout"
+- title: Location-specific name (max 35 chars)
+- description: Immersive narrative with sensory details (max 150 chars)
+- stepTarget: Specific number within vibe range
+
+EXAMPLE (for coastal):
+{"vibe": "discovery", "title": "The Maritime Mystery Route", "description": "Hunt for hidden coves along Kitsilano's shoreline. Feel salt spray as you discover secret beach access points locals cherish.", "stepTarget": 2800}
+
+Respond with ONLY a valid JSON array of 6 missions:
 [
   {"vibe": "chill", "title": "...", "description": "...", "stepTarget": 900},
   {"vibe": "chill", "title": "...", "description": "...", "stepTarget": 1400},
@@ -247,7 +514,7 @@ Respond ONLY with a valid JSON array of 6 missions, no other text:
 
     if (!response) {
       // Empty AI response, use defaults
-      return getDefaultMissions(locationName).map((m) => ({
+      return getDefaultMissions(locationDetails.displayName, environmentType).map((m) => ({
         ...m,
         id: generateId(),
         generatedAt: new Date(),
@@ -264,7 +531,7 @@ Respond ONLY with a valid JSON array of 6 missions, no other text:
       workout: parsedMissions.filter(m => m.vibe === 'workout'),
     };
 
-    const defaults = getDefaultMissions(locationName);
+    const defaults = getDefaultMissions(locationDetails.displayName, environmentType);
     const missions: Mission[] = [];
 
     // For each vibe, get 2 missions (or use defaults if needed)
@@ -297,7 +564,7 @@ Respond ONLY with a valid JSON array of 6 missions, no other text:
   } catch (error) {
     console.error('Mission generation error:', error);
     // Return default missions on error
-    return getDefaultMissions(locationName).map((m) => ({
+    return getDefaultMissions(locationDetails.displayName, environmentType).map((m) => ({
       ...m,
       id: generateId(),
       generatedAt: new Date(),
