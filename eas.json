@@ -10,7 +10,8 @@
       "env": {
         "EXPO_PUBLIC_NEWELL_API_URL": "https://newell.fastshot.ai",
         "EXPO_PUBLIC_PROJECT_ID": "6f21e3fb-3030-44a5-b579-59ee87110735",
-        "GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo"
+        "GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo"
       }
     },
     "preview": {
@@ -18,7 +19,8 @@
       "env": {
         "EXPO_PUBLIC_NEWELL_API_URL": "https://newell.fastshot.ai",
         "EXPO_PUBLIC_PROJECT_ID": "6f21e3fb-3030-44a5-b579-59ee87110735",
-        "GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo"
+        "GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo"
       },
       "ios": {
         "simulator": false
@@ -29,7 +31,8 @@
       "env": {
         "EXPO_PUBLIC_NEWELL_API_URL": "https://newell.fastshot.ai",
         "EXPO_PUBLIC_PROJECT_ID": "6f21e3fb-3030-44a5-b579-59ee87110735",
-        "GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo"
+        "GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo"
       }
     }
   },
