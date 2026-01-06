@@ -3,10 +3,14 @@
  * Fetches street-following walking routes between two points
  */
 
+import Constants from 'expo-constants';
 import { RouteCoordinate } from '@/types/mission';
 
-// Google API key from environment
-const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+// Try multiple sources for API key: process.env first, then expo-constants extra config
+const GOOGLE_API_KEY =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  '';
 
 export interface DirectionsResult {
   success: boolean;

@@ -3,9 +3,14 @@
  * Provides reverse geocoding using Google's API for consistent, POI-aware location names
  */
 
+import Constants from 'expo-constants';
 import { LocationContext } from '@/types/mission';
 
-const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+// Try multiple sources for API key: process.env first, then expo-constants extra config
+const GOOGLE_API_KEY =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  '';
 
 export interface GeocodingResult {
   success: boolean;
