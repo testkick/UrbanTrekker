@@ -5,6 +5,19 @@
 export type MissionVibe = 'chill' | 'discovery' | 'workout';
 
 /**
+ * Environment types for location-aware mission generation
+ */
+export type EnvironmentType =
+  | 'coastal'
+  | 'urban'
+  | 'suburban'
+  | 'historic'
+  | 'park'
+  | 'industrial'
+  | 'mixed'
+  | 'unknown';
+
+/**
  * GPS coordinate with timestamp for route tracking
  */
 export interface RouteCoordinate {
@@ -20,6 +33,10 @@ export interface Mission {
   description: string;
   stepTarget: number;
   generatedAt: Date;
+  /** Target bearing in degrees from north (0-360) for waypoint guidance */
+  targetBearing: number;
+  /** Environment type detected at mission generation */
+  environmentType: EnvironmentType;
 }
 
 export interface ActiveMission extends Mission {
@@ -31,6 +48,12 @@ export interface ActiveMission extends Mission {
   isGeneratingReward?: boolean;
   /** Array of GPS coordinates recorded during the mission */
   routeCoordinates: RouteCoordinate[];
+  /** Projected goal coordinate based on bearing and step target */
+  goalCoordinate: RouteCoordinate;
+  /** Distance in meters from current location to goal */
+  distanceToGoal: number;
+  /** How the mission was completed (steps reached or proximity to goal) */
+  completionType?: 'steps' | 'proximity';
 }
 
 export interface CompletedMission {

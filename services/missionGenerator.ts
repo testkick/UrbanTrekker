@@ -5,7 +5,7 @@
 
 import { generateText } from '@fastshot/ai';
 import * as Location from 'expo-location';
-import { Mission, MissionVibe } from '@/types/mission';
+import { Mission, MissionVibe, EnvironmentType as MissionEnvironmentType } from '@/types/mission';
 
 // Location context for missions
 export interface LocationContext {
@@ -48,17 +48,9 @@ export interface DetailedLocationContext {
 }
 
 /**
- * Environment type classifications for adaptive mission generation
+ * Use EnvironmentType from shared types
  */
-export type EnvironmentType =
-  | 'coastal' // Waterfront, beaches, seawalls
-  | 'urban' // Dense city centers, business districts
-  | 'suburban' // Residential neighborhoods
-  | 'historic' // Old town areas with heritage architecture
-  | 'park' // Green spaces, natural areas
-  | 'industrial' // Warehouses, factories (for unique urban exploration)
-  | 'mixed' // Diverse urban fabric
-  | 'unknown'; // Default fallback
+export type EnvironmentType = MissionEnvironmentType;
 
 /**
  * Enhanced reverse geocoding with detailed location components
@@ -226,6 +218,51 @@ const detectEnvironmentType = (location: DetailedLocationContext): EnvironmentTy
   return 'mixed';
 };
 
+/**
+ * Calculate target bearing based on environment type and vibe
+ * Returns bearing in degrees from north (0-360)
+ *
+ * Bearings guide users in contextually appropriate directions:
+ * - Coastal: Toward/along waterfront
+ * - Park: Through green spaces
+ * - Historic: Toward historic core
+ * - Urban: Through business/cultural districts
+ * - Suburban: Through residential areas
+ * - Industrial: Through creative districts
+ */
+const calculateTargetBearing = (envType: EnvironmentType, vibe: MissionVibe): number => {
+  // Base bearings by environment (in degrees from north)
+  const environmentBearings: Record<EnvironmentType, number[]> = {
+    coastal: [270, 180, 225, 315], // West, South, SW, NW - typically toward/along water
+    park: [0, 90, 180, 270], // All cardinal directions - explore the park
+    historic: [45, 135, 225, 315], // Diagonal directions - weave through old streets
+    urban: [0, 90, 180, 270], // Cardinal directions - follow city grid
+    suburban: [30, 120, 210, 300], // Offset directions - residential exploration
+    industrial: [60, 150, 240, 330], // Varied angles - creative district discovery
+    mixed: [0, 45, 90, 135, 180, 225, 270, 315], // All directions - diverse exploration
+    unknown: [0, 90, 180, 270], // Cardinal directions - safe default
+  };
+
+  // Get possible bearings for this environment
+  const possibleBearings = environmentBearings[envType];
+
+  // Select bearing based on vibe (different vibes get different bearings for variety)
+  let baseBearing: number;
+  if (vibe === 'chill') {
+    baseBearing = possibleBearings[0]; // First option - peaceful direction
+  } else if (vibe === 'discovery') {
+    baseBearing = possibleBearings[possibleBearings.length > 1 ? 1 : 0]; // Second option - exploratory
+  } else {
+    baseBearing = possibleBearings[possibleBearings.length > 2 ? 2 : 0]; // Third option - challenging
+  }
+
+  // Add small random variation (±15 degrees) for natural feeling
+  const variation = (Math.random() * 30) - 15;
+  const finalBearing = (baseBearing + variation + 360) % 360;
+
+  return Math.round(finalBearing);
+};
+
 // Generate unique ID
 const generateId = (): string => {
   return `mission_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -316,12 +353,16 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       title: `The ${period.charAt(0).toUpperCase() + period.slice(1)} Stroll`,
       description: `Take a peaceful walk ${suffix} of ${location}. No rush, just enjoy the journey and let your mind wander freely.`,
       stepTarget: 1000,
+      targetBearing: calculateTargetBearing(envType, 'chill'),
+      environmentType: envType,
     },
     {
       vibe: 'chill' as MissionVibe,
       title: `Mindful Moments Walk`,
       description: `A gentle exploration of ${location}. Breathe deeply, observe your surroundings, and find tranquility in motion.`,
       stepTarget: 1400,
+      targetBearing: calculateTargetBearing(envType, 'chill'),
+      environmentType: envType,
     },
     // Discovery missions (2)
     {
@@ -329,12 +370,16 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       title: `Urban Explorer's Path`,
       description: `Venture beyond your usual routes in ${location}. Find streets you've never walked, discover hidden corners.`,
       stepTarget: 2400,
+      targetBearing: calculateTargetBearing(envType, 'discovery'),
+      environmentType: envType,
     },
     {
       vibe: 'discovery' as MissionVibe,
       title: `Hidden Gems Quest`,
       description: `Seek out the secrets of ${location}. Every corner holds a story waiting to be discovered by curious explorers.`,
       stepTarget: 3200,
+      targetBearing: calculateTargetBearing(envType, 'discovery'),
+      environmentType: envType,
     },
     // Workout missions (2)
     {
@@ -342,12 +387,16 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       title: `The Endurance Trial`,
       description: `Push your limits with this challenging trek ${suffix}. Maintain a brisk pace and feel the energy surge.`,
       stepTarget: 5000,
+      targetBearing: calculateTargetBearing(envType, 'workout'),
+      environmentType: envType,
     },
     {
       vibe: 'workout' as MissionVibe,
       title: `Peak Performance Sprint`,
       description: `Conquer ${location} with determination and power. This intense walk will test your stamina and reward your persistence.`,
       stepTarget: 6800,
+      targetBearing: calculateTargetBearing(envType, 'workout'),
+      environmentType: envType,
     },
   ];
 };
@@ -517,6 +566,8 @@ Respond with ONLY a valid JSON array of 6 missions:
       return getDefaultMissions(locationDetails.displayName, environmentType).map((m) => ({
         ...m,
         id: generateId(),
+        targetBearing: calculateTargetBearing(environmentType, m.vibe),
+        environmentType,
         generatedAt: new Date(),
       }));
     }
@@ -546,6 +597,8 @@ Respond with ONLY a valid JSON array of 6 missions:
         title: vibeMissions[0]?.title || vibeDefaults[0]?.title || `${vibe} quest`,
         description: vibeMissions[0]?.description || vibeDefaults[0]?.description || 'An adventure awaits',
         stepTarget: vibeMissions[0]?.stepTarget || vibeDefaults[0]?.stepTarget || 1000,
+        targetBearing: calculateTargetBearing(environmentType, vibe),
+        environmentType,
         generatedAt: new Date(),
       });
 
@@ -556,6 +609,8 @@ Respond with ONLY a valid JSON array of 6 missions:
         title: vibeMissions[1]?.title || vibeDefaults[1]?.title || `${vibe} quest 2`,
         description: vibeMissions[1]?.description || vibeDefaults[1]?.description || 'Another adventure awaits',
         stepTarget: vibeMissions[1]?.stepTarget || vibeDefaults[1]?.stepTarget || 1500,
+        targetBearing: calculateTargetBearing(environmentType, vibe),
+        environmentType,
         generatedAt: new Date(),
       });
     });
@@ -567,6 +622,8 @@ Respond with ONLY a valid JSON array of 6 missions:
     return getDefaultMissions(locationDetails.displayName, environmentType).map((m) => ({
       ...m,
       id: generateId(),
+      targetBearing: calculateTargetBearing(environmentType, m.vibe),
+      environmentType,
       generatedAt: new Date(),
     }));
   }

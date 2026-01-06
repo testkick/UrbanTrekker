@@ -40,6 +40,56 @@ const calculateDistance = (
   return R * c;
 };
 
+/**
+ * Project a coordinate at a given distance and bearing from a start point
+ * Uses reverse Haversine formula for destination point calculation
+ *
+ * @param lat Starting latitude in degrees
+ * @param lon Starting longitude in degrees
+ * @param distance Distance to travel in meters
+ * @param bearing Direction in degrees from north (0-360)
+ * @returns New coordinate {latitude, longitude}
+ */
+const projectCoordinate = (
+  lat: number,
+  lon: number,
+  distance: number,
+  bearing: number
+): { latitude: number; longitude: number } => {
+  const R = 6371000; // Earth's radius in meters
+  const angularDistance = distance / R;
+
+  const lat1 = (lat * Math.PI) / 180;
+  const lon1 = (lon * Math.PI) / 180;
+  const bearingRad = (bearing * Math.PI) / 180;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angularDistance) +
+      Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearingRad)
+  );
+
+  const lon2 =
+    lon1 +
+    Math.atan2(
+      Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(lat1),
+      Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+    );
+
+  return {
+    latitude: (lat2 * 180) / Math.PI,
+    longitude: (lon2 * 180) / Math.PI,
+  };
+};
+
+/**
+ * Estimate walking distance in meters based on step count
+ * Average stride length: 0.762 meters (2.5 feet) per step
+ */
+const estimateDistance = (steps: number): number => {
+  const AVERAGE_STRIDE_METERS = 0.762;
+  return steps * AVERAGE_STRIDE_METERS;
+};
+
 interface UseMissionResult {
   state: MissionState;
   missions: Mission[];
@@ -47,8 +97,8 @@ interface UseMissionResult {
   error: string | null;
   /** Scan for missions with optional location for context-aware generation */
   scanForMissions: (location?: LocationContext) => Promise<void>;
-  selectMission: (mission: Mission, currentSteps: number) => void;
-  updateMissionProgress: (currentSteps: number) => void;
+  selectMission: (mission: Mission, currentSteps: number, currentLocation: LocationContext) => void;
+  updateMissionProgress: (currentSteps: number, currentLocation?: LocationContext) => void;
   /** Add a GPS coordinate to the active mission's route */
   addRoutePoint: (latitude: number, longitude: number) => void;
   completeMission: () => void;
@@ -103,7 +153,31 @@ export const useMission = (): UseMissionResult => {
   }, [state]);
 
   // Select a mission and start tracking
-  const selectMission = useCallback((mission: Mission, currentSteps: number) => {
+  const selectMission = useCallback((mission: Mission, currentSteps: number, currentLocation: LocationContext) => {
+    // Calculate goal coordinate based on step target and bearing
+    const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
+    const goalCoord = projectCoordinate(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      estimatedDistanceMeters,
+      mission.targetBearing
+    );
+
+    // Create goal coordinate with timestamp
+    const goalCoordinate: RouteCoordinate = {
+      latitude: goalCoord.latitude,
+      longitude: goalCoord.longitude,
+      timestamp: Date.now(),
+    };
+
+    // Calculate initial distance to goal
+    const distanceToGoal = calculateDistance(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      goalCoordinate.latitude,
+      goalCoordinate.longitude
+    );
+
     const active: ActiveMission = {
       ...mission,
       startedAt: new Date(),
@@ -113,6 +187,8 @@ export const useMission = (): UseMissionResult => {
       rewardText: undefined,
       isGeneratingReward: false,
       routeCoordinates: [], // Initialize empty route
+      goalCoordinate,
+      distanceToGoal,
     };
 
     // Reset the last coordinate ref
@@ -123,18 +199,50 @@ export const useMission = (): UseMissionResult => {
     setState('active');
   }, []);
 
-  // Update mission progress with current step count
-  const updateMissionProgress = useCallback((currentSteps: number) => {
+  // Update mission progress with current step count and location
+  const updateMissionProgress = useCallback((currentSteps: number, currentLocation?: LocationContext) => {
     setActiveMission((prev) => {
       if (!prev) return null;
 
       const stepsInMission = currentSteps - prev.stepsAtStart;
-      const isCompleted = stepsInMission >= prev.stepTarget;
+
+      // Check for step-based completion
+      const stepsCompleted = stepsInMission >= prev.stepTarget;
+
+      // Update distance to goal if location is provided
+      let distanceToGoal = prev.distanceToGoal;
+      let proximityCompleted = false;
+      let completionType = prev.completionType;
+
+      if (currentLocation && prev.goalCoordinate) {
+        distanceToGoal = calculateDistance(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          prev.goalCoordinate.latitude,
+          prev.goalCoordinate.longitude
+        );
+
+        // Check for proximity-based completion (within 20 meters)
+        const PROXIMITY_THRESHOLD_METERS = 20;
+        proximityCompleted = distanceToGoal <= PROXIMITY_THRESHOLD_METERS;
+
+        // Set completion type based on how mission was completed
+        if (proximityCompleted && !prev.isCompleted) {
+          completionType = 'proximity';
+        } else if (stepsCompleted && !prev.isCompleted) {
+          completionType = 'steps';
+        }
+      }
+
+      // Mission is completed if either condition is met
+      const isCompleted = stepsCompleted || proximityCompleted;
 
       return {
         ...prev,
         currentSteps,
         isCompleted,
+        distanceToGoal,
+        completionType,
       };
     });
   }, []);

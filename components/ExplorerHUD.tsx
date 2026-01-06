@@ -17,6 +17,7 @@ interface ExplorerHUDProps {
   batteryLevel: number; // 0.0 to 1.0
   isBatteryAvailable: boolean;
   dailyGoal?: number;
+  distanceToGoal?: number; // Distance to mission goal in meters
 }
 
 const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
@@ -25,11 +26,23 @@ const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
   batteryLevel,
   isBatteryAvailable,
   dailyGoal = 10000,
+  distanceToGoal,
 }) => {
   const insets = useSafeAreaInsets();
   const distance = stepsToKm(steps);
   // Convert battery level (0.0-1.0) to percentage (0-100)
   const energyLevel = Math.round(batteryLevel * 100);
+
+  // Check if close to goal (within 50m)
+  const isCloseToGoal = distanceToGoal !== undefined && distanceToGoal < 50;
+
+  // Format distance to goal
+  const formatDistanceToGoal = (meters: number): string => {
+    if (meters < 1000) {
+      return `${Math.round(meters)}m`;
+    }
+    return `${(meters / 1000).toFixed(2)}km`;
+  };
 
   const getEnergyColor = (level: number) => {
     if (level >= 70) return Colors.energyHigh;
@@ -119,6 +132,23 @@ const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
             {isAvailable ? 'TRACKING ACTIVE' : 'SENSOR UNAVAILABLE'}
           </Text>
         </View>
+
+        {/* Distance to Goal Indicator */}
+        {distanceToGoal !== undefined && (
+          <View style={[styles.goalContainer, isCloseToGoal && styles.goalContainerProximity]}>
+            <Ionicons
+              name="flag"
+              size={16}
+              color={isCloseToGoal ? '#FFD700' : '#00B0FF'}
+            />
+            <Text style={[styles.goalText, isCloseToGoal && styles.goalTextProximity]}>
+              {formatDistanceToGoal(distanceToGoal)} TO GOAL
+            </Text>
+            {isCloseToGoal && (
+              <Ionicons name="warning" size={14} color="#FFD700" />
+            )}
+          </View>
+        )}
       </BlurView>
     </View>
   );
@@ -212,6 +242,33 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     fontWeight: '500',
     letterSpacing: 1,
+  },
+  goalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    backgroundColor: 'rgba(0, 176, 255, 0.15)',
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 176, 255, 0.3)',
+  },
+  goalContainerProximity: {
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    borderColor: 'rgba(255, 215, 0, 0.5)',
+  },
+  goalText: {
+    fontSize: FontSizes.xs,
+    color: '#00B0FF',
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  goalTextProximity: {
+    color: '#FFD700',
   },
 });
 

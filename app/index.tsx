@@ -178,12 +178,15 @@ export default function ExplorerDashboard() {
 
   const isWeb = Platform.OS === 'web';
 
-  // Update mission progress when steps change
+  // Update mission progress when steps change or location updates
   useEffect(() => {
-    if (activeMission && missionState === 'active') {
-      updateMissionProgress(steps);
+    if (activeMission && missionState === 'active' && location) {
+      updateMissionProgress(steps, {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
     }
-  }, [steps, activeMission, missionState, updateMissionProgress]);
+  }, [steps, location, activeMission, missionState, updateMissionProgress]);
 
   // Record GPS route when location updates during active mission
   useEffect(() => {
@@ -232,8 +235,14 @@ export default function ExplorerDashboard() {
   }, [scanForMissions, location]);
 
   const handleSelectMission = useCallback((mission: Mission) => {
-    selectMission(mission, steps);
-  }, [selectMission, steps]);
+    // Pass current location for goal coordinate calculation
+    if (location) {
+      selectMission(mission, steps, {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      });
+    }
+  }, [selectMission, steps, location]);
 
   const handleCompleteMission = useCallback(() => {
     completeMission();
@@ -300,7 +309,28 @@ export default function ExplorerDashboard() {
             </Marker>
           )}
 
-          {/* Route path during active mission */}
+          {/* Quest path - Blue dashed line from start to goal */}
+          {activeMission && activeMission.goalCoordinate && location && (
+            <Polyline
+              coordinates={[
+                {
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                },
+                {
+                  latitude: activeMission.goalCoordinate.latitude,
+                  longitude: activeMission.goalCoordinate.longitude,
+                },
+              ]}
+              strokeColor="#00B0FF"
+              strokeWidth={3}
+              lineDashPattern={[10, 10]}
+              lineCap="round"
+              zIndex={1}
+            />
+          )}
+
+          {/* Route path during active mission - Orange walked path */}
           {activeMission && activeMission.routeCoordinates && activeMission.routeCoordinates.length > 1 && (
             <Polyline
               coordinates={activeMission.routeCoordinates.map(coord => ({
@@ -311,7 +341,27 @@ export default function ExplorerDashboard() {
               strokeWidth={4}
               lineCap="round"
               lineJoin="round"
+              zIndex={2}
             />
+          )}
+
+          {/* Goal marker - Animated waypoint */}
+          {activeMission && activeMission.goalCoordinate && (
+            <Marker
+              coordinate={{
+                latitude: activeMission.goalCoordinate.latitude,
+                longitude: activeMission.goalCoordinate.longitude,
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat={true}
+            >
+              <View style={styles.goalMarkerContainer}>
+                <PulsingMarker size={32} color="#00B0FF" />
+                <View style={styles.goalMarkerIcon}>
+                  <Ionicons name="flag" size={16} color="#FFFFFF" />
+                </View>
+              </View>
+            </Marker>
           )}
         </MapView>
       ) : (
@@ -324,6 +374,7 @@ export default function ExplorerDashboard() {
         isAvailable={isPedometerAvailable}
         batteryLevel={batteryLevel}
         isBatteryAvailable={isBatteryAvailable}
+        distanceToGoal={activeMission?.distanceToGoal}
       />
 
       {/* Recenter Button - Native only, hidden during mission selection */}
@@ -562,5 +613,14 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.text,
     opacity: 0.8,
+  },
+  goalMarkerContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  goalMarkerIcon: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

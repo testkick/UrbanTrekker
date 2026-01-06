@@ -11,9 +11,10 @@ import { Colors } from '@/constants/theme';
 
 interface PulsingMarkerProps {
   size?: number;
+  color?: string;
 }
 
-export const PulsingMarker: React.FC<PulsingMarkerProps> = ({ size = 24 }) => {
+export const PulsingMarker: React.FC<PulsingMarkerProps> = ({ size = 24, color }) => {
   const pulseScale = useSharedValue(1);
   const pulseOpacity = useSharedValue(0.6);
 
@@ -46,6 +47,9 @@ export const PulsingMarker: React.FC<PulsingMarkerProps> = ({ size = 24 }) => {
   const outerRingSize = size * 1.5;
   const pulseSize = size * 2;
 
+  const coreColor = color || Colors.markerCore;
+  const pulseColor = color || Colors.markerPulse;
+
   return (
     <View style={[styles.container, { width: pulseSize * 2, height: pulseSize * 2 }]}>
       {/* Pulsing ring */}
@@ -56,6 +60,7 @@ export const PulsingMarker: React.FC<PulsingMarkerProps> = ({ size = 24 }) => {
             width: pulseSize,
             height: pulseSize,
             borderRadius: pulseSize / 2,
+            backgroundColor: pulseColor,
           },
           pulseAnimatedStyle,
         ]}
@@ -81,6 +86,7 @@ export const PulsingMarker: React.FC<PulsingMarkerProps> = ({ size = 24 }) => {
             width: size,
             height: size,
             borderRadius: size / 2,
+            backgroundColor: coreColor,
           },
         ]}
       />
@@ -95,7 +101,6 @@ const styles = StyleSheet.create({
   },
   pulse: {
     position: 'absolute',
-    backgroundColor: Colors.markerPulse,
   },
   outerRing: {
     position: 'absolute',
@@ -108,7 +113,6 @@ const styles = StyleSheet.create({
   },
   core: {
     position: 'absolute',
-    backgroundColor: Colors.markerCore,
   },
 });
 
