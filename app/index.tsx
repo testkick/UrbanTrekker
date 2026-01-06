@@ -16,6 +16,7 @@ import { ExplorerHUD } from '@/components/ExplorerHUD';
 import { PulsingMarker } from '@/components/PulsingMarker';
 import { DestinationMarker } from '@/components/DestinationMarker';
 import { DiscoveryCard } from '@/components/DiscoveryCard';
+import { DiagnosticPanel } from '@/components/DiagnosticPanel';
 import { ScanAreaButton } from '@/components/ScanAreaButton';
 import { QuestCardContainer } from '@/components/QuestCard';
 import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
@@ -153,6 +154,7 @@ export default function ExplorerDashboard() {
   const mapRef = useRef<any>(null);
   const insets = useSafeAreaInsets();
   const [isMapReady, setIsMapReady] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const { location, isLoading, errorMsg: locationError } = useLocation();
   const { steps, isAvailable: isPedometerAvailable, errorMsg: pedometerError } = usePedometer();
@@ -428,6 +430,7 @@ export default function ExplorerDashboard() {
         <View style={[styles.scanButtonContainer, { bottom: insets.bottom + Spacing.md }]}>
           <ScanAreaButton
             onPress={handleScanArea}
+            onLongPress={() => setShowDiagnostics(true)}
             isScanning={isScanning}
           />
         </View>
@@ -472,6 +475,13 @@ export default function ExplorerDashboard() {
           isVisible={isCompleted}
         />
       )}
+
+      {/* Diagnostic Panel - Hidden diagnostic tool (long-press Scan Area) */}
+      <DiagnosticPanel
+        isVisible={showDiagnostics}
+        onClose={() => setShowDiagnostics(false)}
+        currentLocation={location ? { latitude: location.latitude, longitude: location.longitude } : undefined}
+      />
     </View>
   );
 }

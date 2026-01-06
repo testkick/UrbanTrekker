@@ -14,12 +14,14 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '@/constants/t
 
 interface ScanAreaButtonProps {
   onPress: () => void;
+  onLongPress?: () => void;
   isScanning: boolean;
   disabled?: boolean;
 }
 
 const ScanAreaButtonComponent: React.FC<ScanAreaButtonProps> = ({
   onPress,
+  onLongPress,
   isScanning,
   disabled = false,
 }) => {
@@ -91,6 +93,8 @@ const ScanAreaButtonComponent: React.FC<ScanAreaButtonProps> = ({
           disabled && styles.buttonDisabled,
         ]}
         onPress={handlePress}
+        onLongPress={onLongPress}
+        delayLongPress={800}
         activeOpacity={0.9}
         disabled={disabled || isScanning}
       >
