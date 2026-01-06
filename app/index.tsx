@@ -180,9 +180,22 @@ export default function ExplorerDashboard() {
     dismissMissions,
   } = useMission();
 
+  // Diagnostic: Log environment variable status on mount
+  useEffect(() => {
+    const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+    console.log('🔧 App Startup - Environment Diagnostic:');
+    console.log(`  EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: ${apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT FOUND'}`);
+    console.log(`  Key length: ${apiKey?.length || 0}`);
+    if (!apiKey) {
+      console.error('❌ CRITICAL: API key missing! You MUST restart the dev server for .env changes to take effect.');
+    }
+  }, []);
+
   const isWeb = Platform.OS === 'web';
 
   // Update mission progress when steps change or location updates
+  // Note: activeMission is NOT in dependencies to avoid infinite loop
+  // (updateMissionProgress modifies activeMission state)
   useEffect(() => {
     if (activeMission && missionState === 'active' && location) {
       updateMissionProgress(steps, {
@@ -190,7 +203,8 @@ export default function ExplorerDashboard() {
         longitude: location.longitude,
       });
     }
-  }, [steps, location, activeMission, missionState, updateMissionProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [steps, location, missionState]);
 
   // Record GPS route when location updates during active mission
   useEffect(() => {
