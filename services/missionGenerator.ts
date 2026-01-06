@@ -4,8 +4,8 @@
  */
 
 import { generateText } from '@fastshot/ai';
-import * as Location from 'expo-location';
 import { Mission, MissionVibe, EnvironmentType as MissionEnvironmentType, DestinationType } from '@/types/mission';
+import { reverseGeocode as googleReverseGeocode, getDisplayName } from '@/services/googleGeocoding';
 
 // Location context for missions
 export interface LocationContext {
@@ -58,47 +58,28 @@ export type EnvironmentType = MissionEnvironmentType;
  */
 export const getDetailedLocation = async (coords: LocationContext): Promise<DetailedLocationContext> => {
   try {
-    const results = await Location.reverseGeocodeAsync({
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    });
+    console.log('🗺️ Fetching detailed location using Google Geocoding API...');
 
-    if (results && results.length > 0) {
-      const place = results[0];
+    const geocodingResult = await googleReverseGeocode(coords);
 
-      // Extract all available components
-      const neighborhood = place.subregion || place.district || null;
-      const street = place.street || null;
-      const city = place.city || null;
-      const region = place.region || null;
-      const landmark = (place.name && place.name !== place.street) ? place.name : null;
-      const postalCode = place.postalCode || null;
+    if (geocodingResult.success) {
+      const displayName = getDisplayName(geocodingResult);
 
-      // Build display name (most specific to least specific)
-      let displayName = 'Urban Environment';
-      if (landmark) {
-        displayName = landmark + (city ? `, ${city}` : '');
-      } else if (neighborhood) {
-        displayName = neighborhood + (city ? `, ${city}` : '');
-      } else if (street && city) {
-        displayName = `near ${street}, ${city}`;
-      } else if (city) {
-        displayName = city;
-      } else if (region) {
-        displayName = region;
-      }
+      console.log(`✅ Location resolved: ${displayName}`);
 
       return {
         displayName,
-        neighborhood,
-        street,
-        city,
-        region,
-        landmark,
-        postalCode,
+        neighborhood: geocodingResult.neighborhood || null,
+        street: geocodingResult.street || null,
+        city: geocodingResult.city || null,
+        region: geocodingResult.region || null,
+        landmark: geocodingResult.landmark || null,
+        postalCode: geocodingResult.postalCode || null,
       };
     }
 
+    // Fallback if geocoding fails
+    console.warn('⚠️ Geocoding failed, using fallback location name');
     return {
       displayName: 'Urban Environment',
       neighborhood: null,
@@ -108,7 +89,8 @@ export const getDetailedLocation = async (coords: LocationContext): Promise<Deta
       landmark: null,
       postalCode: null,
     };
-  } catch {
+  } catch (error) {
+    console.error('❌ Reverse geocoding exception:', error);
     return {
       displayName: 'Urban Environment',
       neighborhood: null,

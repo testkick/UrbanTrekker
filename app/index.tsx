@@ -199,9 +199,12 @@ export default function ExplorerDashboard() {
     }
   }, [location, missionState, addRoutePoint]);
 
-  // Center map on user when location updates (only on native)
+  // Center map on user ONCE when location first becomes available
+  const hasInitiallyCenter = useRef(false);
   useEffect(() => {
-    if (!isWeb && location && mapRef.current && isMapReady) {
+    if (!isWeb && location && mapRef.current && isMapReady && !hasInitiallyCenter.current) {
+      console.log('📍 Centering map on initial user location');
+      hasInitiallyCenter.current = true;
       mapRef.current.animateToRegion(
         {
           latitude: location.latitude,
@@ -256,7 +259,7 @@ export default function ExplorerDashboard() {
     cancelMission(); // Reset to idle state
   }, [cancelMission]);
 
-  // Debug: Log streetPath changes
+  // Debug: Log streetPath changes with detailed coordinates
   useEffect(() => {
     if (activeMission) {
       console.log('🎯 Active Mission Updated:');
@@ -264,9 +267,15 @@ export default function ExplorerDashboard() {
       console.log(`  Has streetPath: ${activeMission.streetPath ? 'Yes' : 'No'}`);
       if (activeMission.streetPath) {
         console.log(`  Street path length: ${activeMission.streetPath.length} points`);
+        if (activeMission.streetPath.length > 0) {
+          console.log(`  First point: (${activeMission.streetPath[0].latitude}, ${activeMission.streetPath[0].longitude})`);
+          console.log(`  Last point: (${activeMission.streetPath[activeMission.streetPath.length - 1].latitude}, ${activeMission.streetPath[activeMission.streetPath.length - 1].longitude})`);
+        }
         console.log(`  Will render street-following blue path`);
       } else {
         console.log(`  No street path - will render straight line`);
+        console.log(`  Checking why streetPath is missing...`);
+        console.log(`  Active mission keys:`, Object.keys(activeMission));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -330,32 +339,44 @@ export default function ExplorerDashboard() {
           )}
 
           {/* Quest path - Blue dashed line following streets to goal */}
-          {activeMission && activeMission.goalCoordinate && location && (
-            <Polyline
-              coordinates={
-                activeMission.streetPath && activeMission.streetPath.length > 0
-                  ? activeMission.streetPath.map(coord => ({
-                      latitude: coord.latitude,
-                      longitude: coord.longitude,
-                    }))
-                  : [
-                      {
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                      },
-                      {
-                        latitude: activeMission.goalCoordinate.latitude,
-                        longitude: activeMission.goalCoordinate.longitude,
-                      },
-                    ]
-              }
-              strokeColor="#00B0FF"
-              strokeWidth={3}
-              lineDashPattern={[10, 10]}
-              lineCap="round"
-              zIndex={1}
-            />
-          )}
+          {activeMission && activeMission.goalCoordinate && location && (() => {
+            // Debug: Calculate and log the coordinates being used for Polyline
+            const usingStreetPath = activeMission.streetPath && activeMission.streetPath.length > 0;
+            const coordinates = usingStreetPath && activeMission.streetPath
+              ? activeMission.streetPath.map(coord => ({
+                  latitude: coord.latitude,
+                  longitude: coord.longitude,
+                }))
+              : [
+                  {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                  },
+                  {
+                    latitude: activeMission.goalCoordinate.latitude,
+                    longitude: activeMission.goalCoordinate.longitude,
+                  },
+                ];
+
+            console.log('🔵 Rendering Polyline:');
+            console.log(`  Using street path: ${usingStreetPath ? 'YES' : 'NO'}`);
+            console.log(`  Coordinates count: ${coordinates.length}`);
+            if (coordinates.length > 0) {
+              console.log(`  First: (${coordinates[0].latitude.toFixed(6)}, ${coordinates[0].longitude.toFixed(6)})`);
+              console.log(`  Last: (${coordinates[coordinates.length - 1].latitude.toFixed(6)}, ${coordinates[coordinates.length - 1].longitude.toFixed(6)})`);
+            }
+
+            return (
+              <Polyline
+                coordinates={coordinates}
+                strokeColor="#00B0FF"
+                strokeWidth={3}
+                lineDashPattern={[10, 10]}
+                lineCap="round"
+                zIndex={1}
+              />
+            );
+          })()}
 
           {/* Route path during active mission - Orange walked path */}
           {activeMission && activeMission.routeCoordinates && activeMission.routeCoordinates.length > 1 && (

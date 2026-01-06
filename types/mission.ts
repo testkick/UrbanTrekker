@@ -2,6 +2,14 @@
  * Mission types for Stepquest
  */
 
+/**
+ * Location context for mission generation and geocoding
+ */
+export interface LocationContext {
+  latitude: number;
+  longitude: number;
+}
+
 export type MissionVibe = 'chill' | 'discovery' | 'workout';
 
 /**
