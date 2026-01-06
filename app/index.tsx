@@ -14,6 +14,8 @@ import { router } from 'expo-router';
 
 import { ExplorerHUD } from '@/components/ExplorerHUD';
 import { PulsingMarker } from '@/components/PulsingMarker';
+import { DestinationMarker } from '@/components/DestinationMarker';
+import { DiscoveryCard } from '@/components/DiscoveryCard';
 import { ScanAreaButton } from '@/components/ScanAreaButton';
 import { QuestCardContainer } from '@/components/QuestCard';
 import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
@@ -309,19 +311,26 @@ export default function ExplorerDashboard() {
             </Marker>
           )}
 
-          {/* Quest path - Blue dashed line from start to goal */}
+          {/* Quest path - Blue dashed line following streets to goal */}
           {activeMission && activeMission.goalCoordinate && location && (
             <Polyline
-              coordinates={[
-                {
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                },
-                {
-                  latitude: activeMission.goalCoordinate.latitude,
-                  longitude: activeMission.goalCoordinate.longitude,
-                },
-              ]}
+              coordinates={
+                activeMission.streetPath && activeMission.streetPath.length > 0
+                  ? activeMission.streetPath.map(coord => ({
+                      latitude: coord.latitude,
+                      longitude: coord.longitude,
+                    }))
+                  : [
+                      {
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                      },
+                      {
+                        latitude: activeMission.goalCoordinate.latitude,
+                        longitude: activeMission.goalCoordinate.longitude,
+                      },
+                    ]
+              }
               strokeColor="#00B0FF"
               strokeWidth={3}
               lineDashPattern={[10, 10]}
@@ -345,7 +354,7 @@ export default function ExplorerDashboard() {
             />
           )}
 
-          {/* Goal marker - Animated waypoint */}
+          {/* Goal marker - Dynamic destination marker with type-specific icon */}
           {activeMission && activeMission.goalCoordinate && (
             <Marker
               coordinate={{
@@ -355,12 +364,10 @@ export default function ExplorerDashboard() {
               anchor={{ x: 0.5, y: 0.5 }}
               flat={true}
             >
-              <View style={styles.goalMarkerContainer}>
-                <PulsingMarker size={32} color="#00B0FF" />
-                <View style={styles.goalMarkerIcon}>
-                  <Ionicons name="flag" size={16} color="#FFFFFF" />
-                </View>
-              </View>
+              <DestinationMarker
+                destinationType={activeMission.destinationType}
+                size={32}
+              />
             </Marker>
           )}
         </MapView>
@@ -375,6 +382,7 @@ export default function ExplorerDashboard() {
         batteryLevel={batteryLevel}
         isBatteryAvailable={isBatteryAvailable}
         distanceToGoal={activeMission?.distanceToGoal}
+        destinationNarrative={activeMission?.destinationNarrative}
       />
 
       {/* Recenter Button - Native only, hidden during mission selection */}
@@ -440,6 +448,19 @@ export default function ExplorerDashboard() {
           onCancel={cancelMission}
           onComplete={handleCompleteMission}
           isVisible={isActive}
+        />
+      )}
+
+      {/* Discovery Card - Slides up when user arrives at destination */}
+      {activeMission && activeMission.hasArrived && !isCompleted && (
+        <DiscoveryCard
+          isVisible={true}
+          destinationArchetype={activeMission.destinationArchetype || 'Local Destination'}
+          destinationNarrative={activeMission.destinationNarrative}
+          poiName={activeMission.poiName}
+          poiAddress={activeMission.poiAddress}
+          discoveryStory={activeMission.discoveryStory}
+          onCollectReward={handleCompleteMission}
         />
       )}
 
@@ -613,14 +634,5 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.text,
     opacity: 0.8,
-  },
-  goalMarkerContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  goalMarkerIcon: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

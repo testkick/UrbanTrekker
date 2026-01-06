@@ -8,6 +8,8 @@ import {
   saveScanLocation,
   CompletedMission,
 } from '@/services/storage';
+import { findPOIInDirection } from '@/services/googlePlaces';
+import { getWalkingDirections } from '@/services/googleDirections';
 
 // Minimum distance in meters between recorded GPS points
 const MIN_DISTANCE_METERS = 5;
@@ -97,7 +99,7 @@ interface UseMissionResult {
   error: string | null;
   /** Scan for missions with optional location for context-aware generation */
   scanForMissions: (location?: LocationContext) => Promise<void>;
-  selectMission: (mission: Mission, currentSteps: number, currentLocation: LocationContext) => void;
+  selectMission: (mission: Mission, currentSteps: number, currentLocation: LocationContext) => Promise<void>;
   updateMissionProgress: (currentSteps: number, currentLocation?: LocationContext) => void;
   /** Add a GPS coordinate to the active mission's route */
   addRoutePoint: (latitude: number, longitude: number) => void;
@@ -153,15 +155,41 @@ export const useMission = (): UseMissionResult => {
   }, [state]);
 
   // Select a mission and start tracking
-  const selectMission = useCallback((mission: Mission, currentSteps: number, currentLocation: LocationContext) => {
-    // Calculate goal coordinate based on step target and bearing
+  const selectMission = useCallback(async (mission: Mission, currentSteps: number, currentLocation: LocationContext) => {
+    // Calculate initial goal coordinate based on step target and bearing
     const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
-    const goalCoord = projectCoordinate(
+    let goalCoord = projectCoordinate(
       currentLocation.latitude,
       currentLocation.longitude,
       estimatedDistanceMeters,
       mission.targetBearing
     );
+
+    let poiName: string | undefined;
+    let poiAddress: string | undefined;
+    let streetPath: RouteCoordinate[] | undefined;
+
+    // Try to find a real POI matching the destination type
+    console.log(`Searching for ${mission.destinationType} POI...`);
+    const poiResult = await findPOIInDirection(
+      currentLocation,
+      mission.targetBearing,
+      estimatedDistanceMeters,
+      mission.destinationType
+    );
+
+    if (poiResult.success && poiResult.poi) {
+      console.log(`Found POI: ${poiResult.poi.name}`);
+      // Snap goal to the actual POI location
+      goalCoord = {
+        latitude: poiResult.poi.latitude,
+        longitude: poiResult.poi.longitude,
+      };
+      poiName = poiResult.poi.name;
+      poiAddress = poiResult.poi.address;
+    } else {
+      console.log('No POI found, using projected coordinate');
+    }
 
     // Create goal coordinate with timestamp
     const goalCoordinate: RouteCoordinate = {
@@ -169,6 +197,17 @@ export const useMission = (): UseMissionResult => {
       longitude: goalCoord.longitude,
       timestamp: Date.now(),
     };
+
+    // Fetch street-following path using Google Directions API
+    console.log('Fetching walking directions...');
+    const directionsResult = await getWalkingDirections(currentLocation, goalCoord);
+
+    if (directionsResult.success && directionsResult.path) {
+      console.log(`Got street path with ${directionsResult.path.length} points`);
+      streetPath = directionsResult.path;
+    } else {
+      console.log('No street path available, will use straight line');
+    }
 
     // Calculate initial distance to goal
     const distanceToGoal = calculateDistance(
@@ -189,6 +228,10 @@ export const useMission = (): UseMissionResult => {
       routeCoordinates: [], // Initialize empty route
       goalCoordinate,
       distanceToGoal,
+      streetPath,
+      poiName,
+      poiAddress,
+      hasArrived: false,
     };
 
     // Reset the last coordinate ref
@@ -237,12 +280,16 @@ export const useMission = (): UseMissionResult => {
       // Mission is completed if either condition is met
       const isCompleted = stepsCompleted || proximityCompleted;
 
+      // Check if user has arrived at destination (within 20m) for Discovery Card
+      const hasArrived = proximityCompleted;
+
       return {
         ...prev,
         currentSteps,
         isCompleted,
         distanceToGoal,
         completionType,
+        hasArrived,
       };
     });
   }, []);

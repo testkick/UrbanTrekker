@@ -18,6 +18,7 @@ interface ExplorerHUDProps {
   isBatteryAvailable: boolean;
   dailyGoal?: number;
   distanceToGoal?: number; // Distance to mission goal in meters
+  destinationNarrative?: string; // AI-generated narrative hook for the destination
 }
 
 const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
@@ -27,6 +28,7 @@ const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
   isBatteryAvailable,
   dailyGoal = 10000,
   distanceToGoal,
+  destinationNarrative,
 }) => {
   const insets = useSafeAreaInsets();
   const distance = stepsToKm(steps);
@@ -133,17 +135,29 @@ const ExplorerHUDComponent: React.FC<ExplorerHUDProps> = ({
           </Text>
         </View>
 
-        {/* Distance to Goal Indicator */}
+        {/* Distance to Goal Indicator with Narrative */}
         {distanceToGoal !== undefined && (
           <View style={[styles.goalContainer, isCloseToGoal && styles.goalContainerProximity]}>
             <Ionicons
-              name="flag"
+              name={isCloseToGoal ? 'flag' : 'compass'}
               size={16}
               color={isCloseToGoal ? '#FFD700' : '#00B0FF'}
             />
-            <Text style={[styles.goalText, isCloseToGoal && styles.goalTextProximity]}>
-              {formatDistanceToGoal(distanceToGoal)} TO GOAL
-            </Text>
+            <View style={styles.goalTextContainer}>
+              <Text style={[styles.goalDistance, isCloseToGoal && styles.goalDistanceProximity]}>
+                {formatDistanceToGoal(distanceToGoal)}
+              </Text>
+              {destinationNarrative && (
+                <Text style={[styles.goalNarrative, isCloseToGoal && styles.goalNarrativeProximity]} numberOfLines={1}>
+                  {destinationNarrative}
+                </Text>
+              )}
+              {!destinationNarrative && (
+                <Text style={[styles.goalText, isCloseToGoal && styles.goalTextProximity]}>
+                  TO GOAL
+                </Text>
+              )}
+            </View>
             {isCloseToGoal && (
               <Ionicons name="warning" size={14} color="#FFD700" />
             )}
@@ -260,6 +274,31 @@ const styles = StyleSheet.create({
   goalContainerProximity: {
     backgroundColor: 'rgba(255, 215, 0, 0.15)',
     borderColor: 'rgba(255, 215, 0, 0.5)',
+  },
+  goalTextContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalDistance: {
+    fontSize: FontSizes.xs,
+    color: '#00B0FF',
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  goalDistanceProximity: {
+    color: '#FFD700',
+  },
+  goalNarrative: {
+    fontSize: 11,
+    color: '#00B0FF',
+    fontWeight: '500',
+    opacity: 0.9,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  goalNarrativeProximity: {
+    color: '#FFD700',
   },
   goalText: {
     fontSize: FontSizes.xs,
