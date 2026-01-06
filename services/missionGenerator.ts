@@ -5,7 +5,7 @@
 
 import { generateText } from '@fastshot/ai';
 import * as Location from 'expo-location';
-import { Mission, MissionVibe, EnvironmentType as MissionEnvironmentType } from '@/types/mission';
+import { Mission, MissionVibe, EnvironmentType as MissionEnvironmentType, DestinationType } from '@/types/mission';
 
 // Location context for missions
 export interface LocationContext {
@@ -301,14 +301,24 @@ const parseAIResponse = (response: string): Omit<Mission, 'id' | 'generatedAt'>[
             return null;
           }
 
+          // Validate destination type if provided
+          const validDestinationTypes: DestinationType[] = [
+            'bakery', 'cafe', 'park', 'landmark', 'restaurant', 'shop', 'gallery', 'viewpoint', 'mystery'
+          ];
+          const destinationType: DestinationType =
+            validDestinationTypes.includes(item.destinationType) ? item.destinationType : 'landmark';
+
           return {
             vibe: item.vibe as MissionVibe,
             title: String(item.title).substring(0, 40), // Ensure title length limit
             description: String(item.description).substring(0, 160), // Ensure description length limit
             stepTarget: Math.max(100, Math.round(Number(item.stepTarget) / 100) * 100), // Round to nearest 100, minimum 100
+            destinationType,
+            destinationArchetype: item.destinationArchetype ? String(item.destinationArchetype).substring(0, 40) : 'Local Destination',
+            destinationNarrative: item.destinationNarrative ? String(item.destinationNarrative).substring(0, 80) : 'A hidden local treasure waiting to be discovered',
           };
         })
-        .filter((m): m is Omit<Mission, 'id' | 'generatedAt'> => m !== null);
+        .filter((m: any): m is any => m !== null);
 
       // If we got at least some valid missions, return them (fallback will fill the rest)
       if (missions.length > 0) {
@@ -325,6 +335,70 @@ const parseAIResponse = (response: string): Omit<Mission, 'id' | 'generatedAt'>[
 
   // Return empty array, let caller handle defaults with proper context
   return [];
+};
+
+/**
+ * Get appropriate destination type based on environment and vibe
+ */
+const getDestinationType = (envType: EnvironmentType, vibe: MissionVibe): DestinationType => {
+  if (envType === 'park') return 'park';
+  if (envType === 'coastal') return 'viewpoint';
+  if (envType === 'historic') return 'landmark';
+
+  // Default based on vibe
+  if (vibe === 'chill') return 'cafe';
+  if (vibe === 'discovery') return 'landmark';
+  return 'viewpoint'; // workout
+};
+
+/**
+ * Get destination archetype and narrative based on environment
+ */
+const getDestinationDefaults = (envType: EnvironmentType, vibe: MissionVibe): { archetype: string; narrative: string } => {
+  const defaults: Record<EnvironmentType, Record<MissionVibe, { archetype: string; narrative: string }>> = {
+    coastal: {
+      chill: { archetype: 'The Waterfront Refuge', narrative: 'Where the sound of waves brings instant peace' },
+      discovery: { archetype: 'The Maritime Overlook', narrative: 'A hidden spot locals treasure for its ocean views' },
+      workout: { archetype: 'The Coastal Challenge Point', narrative: 'Where fitness meets breathtaking scenery' },
+    },
+    park: {
+      chill: { archetype: 'The Tranquil Grove', narrative: 'Nature\'s perfect sanctuary within the city' },
+      discovery: { archetype: 'The Secret Garden', narrative: 'A green oasis most visitors never find' },
+      workout: { archetype: 'The Summit Trail', narrative: 'Worth every step for the panoramic reward' },
+    },
+    historic: {
+      chill: { archetype: 'The Heritage Cafe', narrative: 'Where history and hospitality blend perfectly' },
+      discovery: { archetype: 'The Architectural Gem', narrative: 'A building with stories etched into every stone' },
+      workout: { archetype: 'The Historic Heights', narrative: 'Centuries-old paths that still inspire' },
+    },
+    urban: {
+      chill: { archetype: 'The Local Coffee Sanctuary', narrative: 'Where neighborhood life hums with warmth' },
+      discovery: { archetype: 'The Urban Art Spot', narrative: 'Street creativity at its most vibrant' },
+      workout: { archetype: 'The City Vista Point', narrative: 'Earn your skyline panorama' },
+    },
+    suburban: {
+      chill: { archetype: 'The Neighborhood Haven', narrative: 'Community charm in every corner' },
+      discovery: { archetype: 'The Hidden Local Shop', narrative: 'A place regulars keep coming back to' },
+      workout: { archetype: 'The Residential Peak', narrative: 'Quiet streets leading to scenic rewards' },
+    },
+    industrial: {
+      chill: { archetype: 'The Warehouse Cafe', narrative: 'Rough edges meet smooth coffee' },
+      discovery: { archetype: 'The Urban Canvas', narrative: 'Where grit becomes art' },
+      workout: { archetype: 'The Industrial Vista', narrative: 'Raw beauty from unexpected angles' },
+    },
+    mixed: {
+      chill: { archetype: 'The Eclectic Corner', narrative: 'Where diverse neighborhoods converge beautifully' },
+      discovery: { archetype: 'The Cultural Intersection', narrative: 'Stories blend at this unique crossroads' },
+      workout: { archetype: 'The Diverse Panorama', narrative: 'See the city\'s many faces in one view' },
+    },
+    unknown: {
+      chill: { archetype: 'The Peaceful Spot', narrative: 'A calming place worth finding' },
+      discovery: { archetype: 'The Local Landmark', narrative: 'Discover what makes this place special' },
+      workout: { archetype: 'The Achievement Point', narrative: 'Reach the destination, earn the view' },
+    },
+  };
+
+  return defaults[envType][vibe] || defaults.unknown[vibe];
 };
 
 // Environment-aware default missions as fallback (2 per vibe = 6 total)
@@ -346,6 +420,10 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
 
   const suffix = environmentSuffix[envType];
 
+  const chillDefaults = getDestinationDefaults(envType, 'chill');
+  const discoveryDefaults = getDestinationDefaults(envType, 'discovery');
+  const workoutDefaults = getDestinationDefaults(envType, 'workout');
+
   return [
     // Chill missions (2)
     {
@@ -355,6 +433,9 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       stepTarget: 1000,
       targetBearing: calculateTargetBearing(envType, 'chill'),
       environmentType: envType,
+      destinationType: getDestinationType(envType, 'chill'),
+      destinationArchetype: chillDefaults.archetype,
+      destinationNarrative: chillDefaults.narrative,
     },
     {
       vibe: 'chill' as MissionVibe,
@@ -363,6 +444,9 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       stepTarget: 1400,
       targetBearing: calculateTargetBearing(envType, 'chill'),
       environmentType: envType,
+      destinationType: getDestinationType(envType, 'chill'),
+      destinationArchetype: chillDefaults.archetype,
+      destinationNarrative: chillDefaults.narrative,
     },
     // Discovery missions (2)
     {
@@ -372,6 +456,9 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       stepTarget: 2400,
       targetBearing: calculateTargetBearing(envType, 'discovery'),
       environmentType: envType,
+      destinationType: getDestinationType(envType, 'discovery'),
+      destinationArchetype: discoveryDefaults.archetype,
+      destinationNarrative: discoveryDefaults.narrative,
     },
     {
       vibe: 'discovery' as MissionVibe,
@@ -380,6 +467,9 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       stepTarget: 3200,
       targetBearing: calculateTargetBearing(envType, 'discovery'),
       environmentType: envType,
+      destinationType: getDestinationType(envType, 'discovery'),
+      destinationArchetype: discoveryDefaults.archetype,
+      destinationNarrative: discoveryDefaults.narrative,
     },
     // Workout missions (2)
     {
@@ -389,6 +479,9 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       stepTarget: 5000,
       targetBearing: calculateTargetBearing(envType, 'workout'),
       environmentType: envType,
+      destinationType: getDestinationType(envType, 'workout'),
+      destinationArchetype: workoutDefaults.archetype,
+      destinationNarrative: workoutDefaults.narrative,
     },
     {
       vibe: 'workout' as MissionVibe,
@@ -397,6 +490,9 @@ const getDefaultMissions = (locationName: string, envType: EnvironmentType): Omi
       stepTarget: 6800,
       targetBearing: calculateTargetBearing(envType, 'workout'),
       environmentType: envType,
+      destinationType: getDestinationType(envType, 'workout'),
+      destinationArchetype: workoutDefaults.archetype,
+      destinationNarrative: workoutDefaults.narrative,
     },
   ];
 };
@@ -539,23 +635,32 @@ ${getVibeToneGuidance('workout', environmentType)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+🎭 DESTINATION STORYTELLING:
+Each mission MUST lead to a specific, real-world destination archetype:
+- destinationType: "bakery" | "cafe" | "park" | "landmark" | "restaurant" | "shop" | "gallery" | "viewpoint" | "mystery"
+- destinationArchetype: A poetic name (e.g., "A Secret Garden", "The Sourdough Sanctuary", "Hidden Urban Mural")
+- destinationNarrative: One compelling sentence explaining WHY this spot is a local treasure (max 80 chars)
+
 FORMAT REQUIREMENTS:
 - vibe: "chill" | "discovery" | "workout"
 - title: Location-specific name (max 35 chars)
 - description: Immersive narrative with sensory details (max 150 chars)
 - stepTarget: Specific number within vibe range
+- destinationType: One of the types above that fits the environment
+- destinationArchetype: Poetic destination name (max 40 chars)
+- destinationNarrative: Why visit sentence (max 80 chars)
 
 EXAMPLE (for coastal):
-{"vibe": "discovery", "title": "The Maritime Mystery Route", "description": "Hunt for hidden coves along Kitsilano's shoreline. Feel salt spray as you discover secret beach access points locals cherish.", "stepTarget": 2800}
+{"vibe": "discovery", "title": "The Maritime Mystery Route", "description": "Hunt for hidden coves along Kitsilano's shoreline. Feel salt spray as you discover secret beach access points locals cherish.", "stepTarget": 2800, "destinationType": "viewpoint", "destinationArchetype": "The Fisherman's Overlook", "destinationNarrative": "Where locals watch sunsets paint the water golden"}
 
 Respond with ONLY a valid JSON array of 6 missions:
 [
-  {"vibe": "chill", "title": "...", "description": "...", "stepTarget": 900},
-  {"vibe": "chill", "title": "...", "description": "...", "stepTarget": 1400},
-  {"vibe": "discovery", "title": "...", "description": "...", "stepTarget": 2200},
-  {"vibe": "discovery", "title": "...", "description": "...", "stepTarget": 3300},
-  {"vibe": "workout", "title": "...", "description": "...", "stepTarget": 4500},
-  {"vibe": "workout", "title": "...", "description": "...", "stepTarget": 6500}
+  {"vibe": "chill", "title": "...", "description": "...", "stepTarget": 900, "destinationType": "...", "destinationArchetype": "...", "destinationNarrative": "..."},
+  {"vibe": "chill", "title": "...", "description": "...", "stepTarget": 1400, "destinationType": "...", "destinationArchetype": "...", "destinationNarrative": "..."},
+  {"vibe": "discovery", "title": "...", "description": "...", "stepTarget": 2200, "destinationType": "...", "destinationArchetype": "...", "destinationNarrative": "..."},
+  {"vibe": "discovery", "title": "...", "description": "...", "stepTarget": 3300, "destinationType": "...", "destinationArchetype": "...", "destinationNarrative": "..."},
+  {"vibe": "workout", "title": "...", "description": "...", "stepTarget": 4500, "destinationType": "...", "destinationArchetype": "...", "destinationNarrative": "..."},
+  {"vibe": "workout", "title": "...", "description": "...", "stepTarget": 6500, "destinationType": "...", "destinationArchetype": "...", "destinationNarrative": "..."}
 ]`;
 
   try {
@@ -599,6 +704,9 @@ Respond with ONLY a valid JSON array of 6 missions:
         stepTarget: vibeMissions[0]?.stepTarget || vibeDefaults[0]?.stepTarget || 1000,
         targetBearing: calculateTargetBearing(environmentType, vibe),
         environmentType,
+        destinationType: vibeMissions[0]?.destinationType || vibeDefaults[0]?.destinationType || 'landmark',
+        destinationArchetype: vibeMissions[0]?.destinationArchetype || vibeDefaults[0]?.destinationArchetype || 'Local Destination',
+        destinationNarrative: vibeMissions[0]?.destinationNarrative || vibeDefaults[0]?.destinationNarrative || 'A hidden local treasure',
         generatedAt: new Date(),
       });
 
@@ -611,6 +719,9 @@ Respond with ONLY a valid JSON array of 6 missions:
         stepTarget: vibeMissions[1]?.stepTarget || vibeDefaults[1]?.stepTarget || 1500,
         targetBearing: calculateTargetBearing(environmentType, vibe),
         environmentType,
+        destinationType: vibeMissions[1]?.destinationType || vibeDefaults[1]?.destinationType || 'landmark',
+        destinationArchetype: vibeMissions[1]?.destinationArchetype || vibeDefaults[1]?.destinationArchetype || 'Local Destination',
+        destinationNarrative: vibeMissions[1]?.destinationNarrative || vibeDefaults[1]?.destinationNarrative || 'A hidden local treasure',
         generatedAt: new Date(),
       });
     });

@@ -26,6 +26,20 @@ export interface RouteCoordinate {
   timestamp: number; // Unix timestamp in milliseconds
 }
 
+/**
+ * Destination types for POI-based missions
+ */
+export type DestinationType =
+  | 'bakery'
+  | 'cafe'
+  | 'park'
+  | 'landmark'
+  | 'restaurant'
+  | 'shop'
+  | 'gallery'
+  | 'viewpoint'
+  | 'mystery';
+
 export interface Mission {
   id: string;
   vibe: MissionVibe;
@@ -37,6 +51,12 @@ export interface Mission {
   targetBearing: number;
   /** Environment type detected at mission generation */
   environmentType: EnvironmentType;
+  /** Type of destination for POI snapping and icon display */
+  destinationType: DestinationType;
+  /** AI-generated narrative hook explaining why this destination is special */
+  destinationNarrative: string;
+  /** Optional destination archetype (e.g., "A Secret Garden", "Local Sourdough Sanctuary") */
+  destinationArchetype?: string;
 }
 
 export interface ActiveMission extends Mission {
@@ -54,6 +74,16 @@ export interface ActiveMission extends Mission {
   distanceToGoal: number;
   /** How the mission was completed (steps reached or proximity to goal) */
   completionType?: 'steps' | 'proximity';
+  /** Street-following path from Google Directions API */
+  streetPath?: RouteCoordinate[];
+  /** POI name if snapped to actual location */
+  poiName?: string;
+  /** POI address if available */
+  poiAddress?: string;
+  /** Flag indicating user has arrived at destination (within 20m) */
+  hasArrived?: boolean;
+  /** AI-generated "Local Review" story for Discovery Card */
+  discoveryStory?: string;
 }
 
 export interface CompletedMission {
