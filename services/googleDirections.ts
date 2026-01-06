@@ -71,8 +71,13 @@ export async function getWalkingDirections(
   origin: { latitude: number; longitude: number },
   destination: { latitude: number; longitude: number }
 ): Promise<DirectionsResult> {
+  console.log('🔑 Checking API key...');
+  console.log(`  API Key present: ${GOOGLE_API_KEY ? 'Yes' : 'No'}`);
+  console.log(`  API Key starts with: ${GOOGLE_API_KEY ? GOOGLE_API_KEY.substring(0, 10) + '...' : 'N/A'}`);
+
   if (!GOOGLE_API_KEY) {
-    console.error('Google Maps API key not found');
+    console.error('❌ Google Maps API key not found in environment');
+    console.error('  Expected: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY');
     return {
       success: false,
       error: 'API key not configured',
@@ -85,11 +90,23 @@ export async function getWalkingDirections(
 
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destinationStr}&mode=walking&key=${GOOGLE_API_KEY}`;
 
+    console.log('📡 Making Directions API request...');
+    console.log(`  URL: ${url.replace(GOOGLE_API_KEY, 'API_KEY_HIDDEN')}`);
+
     const response = await fetch(url);
     const data = await response.json();
 
+    console.log('📥 Directions API response status:', data.status);
+
     if (data.status !== 'OK') {
-      console.warn('Directions API error:', data.status, data.error_message);
+      console.error('❌ Directions API error:', data.status);
+      if (data.error_message) {
+        console.error('   Error message:', data.error_message);
+      }
+      console.error('   Common causes:');
+      console.error('   - REQUEST_DENIED: Directions API not enabled in Google Cloud Console');
+      console.error('   - OVER_QUERY_LIMIT: Billing not enabled or quota exceeded');
+      console.error('   - INVALID_REQUEST: Invalid coordinates or parameters');
       return {
         success: false,
         error: data.error_message || data.status,
@@ -97,6 +114,7 @@ export async function getWalkingDirections(
     }
 
     if (!data.routes || data.routes.length === 0) {
+      console.error('❌ No routes found in API response');
       return {
         success: false,
         error: 'No routes found',
@@ -106,16 +124,29 @@ export async function getWalkingDirections(
     const route = data.routes[0];
     const leg = route.legs[0];
 
+    console.log('📍 Route found:');
+    console.log(`  Distance: ${leg.distance?.text} (${leg.distance?.value}m)`);
+    console.log(`  Duration: ${leg.duration?.text} (${leg.duration?.value}s)`);
+
     // Decode the overview polyline for the full route
     const encodedPolyline = route.overview_polyline?.points;
     if (!encodedPolyline) {
+      console.error('❌ No polyline data in route');
       return {
         success: false,
         error: 'No polyline data',
       };
     }
 
+    console.log('🔓 Decoding polyline...');
+    console.log(`  Encoded polyline length: ${encodedPolyline.length} chars`);
+
     const path = decodePolyline(encodedPolyline);
+
+    console.log(`✅ Polyline decoded successfully!`);
+    console.log(`  Generated ${path.length} coordinate points`);
+    console.log(`  First point: (${path[0].latitude}, ${path[0].longitude})`);
+    console.log(`  Last point: (${path[path.length - 1].latitude}, ${path[path.length - 1].longitude})`);
 
     return {
       success: true,
@@ -124,7 +155,11 @@ export async function getWalkingDirections(
       duration: leg.duration?.value, // seconds
     };
   } catch (error) {
-    console.error('Error fetching walking directions:', error);
+    console.error('❌ Exception fetching walking directions:', error);
+    if (error instanceof Error) {
+      console.error('   Error message:', error.message);
+      console.error('   Stack trace:', error.stack);
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

@@ -256,6 +256,22 @@ export default function ExplorerDashboard() {
     cancelMission(); // Reset to idle state
   }, [cancelMission]);
 
+  // Debug: Log streetPath changes
+  useEffect(() => {
+    if (activeMission) {
+      console.log('🎯 Active Mission Updated:');
+      console.log(`  Mission: ${activeMission.title}`);
+      console.log(`  Has streetPath: ${activeMission.streetPath ? 'Yes' : 'No'}`);
+      if (activeMission.streetPath) {
+        console.log(`  Street path length: ${activeMission.streetPath.length} points`);
+        console.log(`  Will render street-following blue path`);
+      } else {
+        console.log(`  No street path - will render straight line`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMission?.streetPath, activeMission?.title]);
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>

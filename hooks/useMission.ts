@@ -199,13 +199,20 @@ export const useMission = (): UseMissionResult => {
     };
 
     // Fetch street-following path using Google Directions API
-    console.log('Fetching walking directions...');
+    console.log('🗺️ Fetching walking directions from Google Directions API...');
+    console.log(`  Origin: ${currentLocation.latitude}, ${currentLocation.longitude}`);
+    console.log(`  Destination: ${goalCoord.latitude}, ${goalCoord.longitude}`);
+
     const directionsResult = await getWalkingDirections(currentLocation, goalCoord);
 
     if (directionsResult.success && directionsResult.path) {
-      console.log(`Got street path with ${directionsResult.path.length} points`);
+      console.log(`✅ Got street path with ${directionsResult.path.length} points`);
+      console.log(`  Distance: ${directionsResult.distance}m, Duration: ${directionsResult.duration}s`);
       streetPath = directionsResult.path;
     } else {
+      console.error('❌ Directions API failed:', directionsResult.error);
+      console.error('  This means the blue path will be a straight line instead of following streets');
+      console.error('  Check: 1) API key configured 2) Directions API enabled 3) Billing enabled');
       console.log('No street path available, will use straight line');
     }
 
