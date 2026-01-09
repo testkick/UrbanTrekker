@@ -10,6 +10,7 @@ import {
 } from '@/services/storage';
 import { findPOIInDirection } from '@/services/googlePlaces';
 import { getWalkingDirections } from '@/services/googleDirections';
+import { calculateDistance as calculateHaversineDistance, calculateRemainingPathDistance } from '@/utils/pathDistance';
 
 // Minimum distance in meters between recorded GPS points
 const MIN_DISTANCE_METERS = 5;
@@ -20,27 +21,8 @@ interface LocationContext {
   longitude: number;
 }
 
-/**
- * Calculate distance between two GPS coordinates in meters using Haversine formula
- */
-const calculateDistance = (
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number => {
-  const R = 6371000; // Earth's radius in meters
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
+// Use calculateHaversineDistance from utils/pathDistance.ts
+const calculateDistance = calculateHaversineDistance;
 
 /**
  * Project a coordinate at a given distance and bearing from a start point
@@ -156,97 +138,114 @@ export const useMission = (): UseMissionResult => {
 
   // Select a mission and start tracking
   const selectMission = useCallback(async (mission: Mission, currentSteps: number, currentLocation: LocationContext) => {
-    // Calculate initial goal coordinate based on step target and bearing
-    const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
-    let goalCoord = projectCoordinate(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      estimatedDistanceMeters,
-      mission.targetBearing
-    );
+    try {
+      // Set state to 'active' immediately to show loading state
+      setState('active');
+      setMissions([]);
 
-    let poiName: string | undefined;
-    let poiAddress: string | undefined;
-    let streetPath: RouteCoordinate[] | undefined;
+      // Calculate initial goal coordinate based on step target and bearing
+      const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
+      let goalCoord = projectCoordinate(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        estimatedDistanceMeters,
+        mission.targetBearing
+      );
 
-    // Try to find a real POI matching the destination type
-    console.log(`Searching for ${mission.destinationType} POI...`);
-    const poiResult = await findPOIInDirection(
-      currentLocation,
-      mission.targetBearing,
-      estimatedDistanceMeters,
-      mission.destinationType
-    );
+      let poiName: string | undefined;
+      let poiAddress: string | undefined;
+      let streetPath: RouteCoordinate[] | undefined;
 
-    if (poiResult.success && poiResult.poi) {
-      console.log(`Found POI: ${poiResult.poi.name}`);
-      // Snap goal to the actual POI location
-      goalCoord = {
-        latitude: poiResult.poi.latitude,
-        longitude: poiResult.poi.longitude,
+      // Try to find a real POI matching the destination type
+      console.log(`🔍 Searching for ${mission.destinationType} POI...`);
+      const poiResult = await findPOIInDirection(
+        currentLocation,
+        mission.targetBearing,
+        estimatedDistanceMeters,
+        mission.destinationType
+      );
+
+      if (poiResult.success && poiResult.poi) {
+        console.log(`✅ Found POI: ${poiResult.poi.name}`);
+        // Snap goal to the actual POI location
+        goalCoord = {
+          latitude: poiResult.poi.latitude,
+          longitude: poiResult.poi.longitude,
+        };
+        poiName = poiResult.poi.name;
+        poiAddress = poiResult.poi.address;
+      } else {
+        console.log('⚠️ No POI found, using projected coordinate');
+      }
+
+      // Create goal coordinate with timestamp
+      const goalCoordinate: RouteCoordinate = {
+        latitude: goalCoord.latitude,
+        longitude: goalCoord.longitude,
+        timestamp: Date.now(),
       };
-      poiName = poiResult.poi.name;
-      poiAddress = poiResult.poi.address;
-    } else {
-      console.log('No POI found, using projected coordinate');
+
+      // Fetch street-following path using Google Directions API
+      console.log('🗺️ Fetching walking directions from Google Directions API...');
+      console.log(`  Origin: (${currentLocation.latitude.toFixed(6)}, ${currentLocation.longitude.toFixed(6)})`);
+      console.log(`  Destination: (${goalCoord.latitude.toFixed(6)}, ${goalCoord.longitude.toFixed(6)})`);
+
+      const directionsResult = await getWalkingDirections(currentLocation, goalCoord);
+
+      if (directionsResult.success && directionsResult.path) {
+        console.log(`✅ Got street path with ${directionsResult.path.length} points`);
+        console.log(`  Distance: ${directionsResult.distance}m, Duration: ${directionsResult.duration}s`);
+        streetPath = directionsResult.path;
+      } else {
+        console.warn('⚠️ Directions API failed:', directionsResult.error);
+        console.warn('  Falling back to straight line path');
+        console.warn('  The blue path will be shown as a direct line to the destination');
+        // No need to throw - we'll gracefully fall back to straight line
+      }
+
+      // Calculate initial distance to goal
+      // Use street path distance if available, otherwise straight line
+      let distanceToGoal: number;
+      if (streetPath && streetPath.length > 0) {
+        distanceToGoal = calculateRemainingPathDistance(currentLocation, streetPath);
+        console.log(`📏 Initial distance along street path: ${Math.round(distanceToGoal)}m`);
+      } else {
+        distanceToGoal = calculateDistance(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          goalCoordinate.latitude,
+          goalCoordinate.longitude
+        );
+        console.log(`📏 Initial straight-line distance: ${Math.round(distanceToGoal)}m`);
+      }
+
+      const active: ActiveMission = {
+        ...mission,
+        startedAt: new Date(),
+        stepsAtStart: currentSteps,
+        currentSteps: currentSteps,
+        isCompleted: false,
+        rewardText: undefined,
+        isGeneratingReward: false,
+        routeCoordinates: [], // Initialize empty route
+        goalCoordinate,
+        distanceToGoal,
+        streetPath,
+        poiName,
+        poiAddress,
+        hasArrived: false,
+      };
+
+      // Reset the last coordinate ref
+      lastCoordinateRef.current = null;
+
+      setActiveMission(active);
+      console.log('✅ Mission activated successfully!');
+    } catch (error) {
+      console.error('❌ Error selecting mission:', error);
+      setError('Failed to start mission. Please try again.');
+      setState('idle');
     }
-
-    // Create goal coordinate with timestamp
-    const goalCoordinate: RouteCoordinate = {
-      latitude: goalCoord.latitude,
-      longitude: goalCoord.longitude,
-      timestamp: Date.now(),
-    };
-
-    // Fetch street-following path using Google Directions API
-    console.log('🗺️ Fetching walking directions from Google Directions API...');
-    console.log(`  Origin: ${currentLocation.latitude}, ${currentLocation.longitude}`);
-    console.log(`  Destination: ${goalCoord.latitude}, ${goalCoord.longitude}`);
-
-    const directionsResult = await getWalkingDirections(currentLocation, goalCoord);
-
-    if (directionsResult.success && directionsResult.path) {
-      console.log(`✅ Got street path with ${directionsResult.path.length} points`);
-      console.log(`  Distance: ${directionsResult.distance}m, Duration: ${directionsResult.duration}s`);
-      streetPath = directionsResult.path;
-    } else {
-      console.error('❌ Directions API failed:', directionsResult.error);
-      console.error('  This means the blue path will be a straight line instead of following streets');
-      console.error('  Check: 1) API key configured 2) Directions API enabled 3) Billing enabled');
-      console.log('No street path available, will use straight line');
-    }
-
-    // Calculate initial distance to goal
-    const distanceToGoal = calculateDistance(
-      currentLocation.latitude,
-      currentLocation.longitude,
-      goalCoordinate.latitude,
-      goalCoordinate.longitude
-    );
-
-    const active: ActiveMission = {
-      ...mission,
-      startedAt: new Date(),
-      stepsAtStart: currentSteps,
-      currentSteps: currentSteps,
-      isCompleted: false,
-      rewardText: undefined,
-      isGeneratingReward: false,
-      routeCoordinates: [], // Initialize empty route
-      goalCoordinate,
-      distanceToGoal,
-      streetPath,
-      poiName,
-      poiAddress,
-      hasArrived: false,
-    };
-
-    // Reset the last coordinate ref
-    lastCoordinateRef.current = null;
-
-    setActiveMission(active);
-    setMissions([]);
-    setState('active');
   }, []);
 
   // Update mission progress with current step count and location
@@ -265,16 +264,31 @@ export const useMission = (): UseMissionResult => {
       let completionType = prev.completionType;
 
       if (currentLocation && prev.goalCoordinate) {
-        distanceToGoal = calculateDistance(
+        // Calculate actual straight-line distance for proximity detection
+        const straightLineDistance = calculateDistance(
           currentLocation.latitude,
           currentLocation.longitude,
           prev.goalCoordinate.latitude,
           prev.goalCoordinate.longitude
         );
 
+        // If we have a street path, calculate remaining distance along the path
+        // Otherwise, use straight-line distance
+        if (prev.streetPath && prev.streetPath.length > 0) {
+          distanceToGoal = calculateRemainingPathDistance(currentLocation, prev.streetPath);
+          console.log('📏 Street path distance update:', {
+            straightLine: Math.round(straightLineDistance),
+            alongPath: Math.round(distanceToGoal),
+            pathPoints: prev.streetPath.length,
+          });
+        } else {
+          distanceToGoal = straightLineDistance;
+        }
+
         // Check for proximity-based completion (within 20 meters)
+        // Always use straight-line distance for arrival detection to avoid path calculation errors
         const PROXIMITY_THRESHOLD_METERS = 20;
-        proximityCompleted = distanceToGoal <= PROXIMITY_THRESHOLD_METERS;
+        proximityCompleted = straightLineDistance <= PROXIMITY_THRESHOLD_METERS;
 
         // Set completion type based on how mission was completed
         if (proximityCompleted && !prev.isCompleted) {

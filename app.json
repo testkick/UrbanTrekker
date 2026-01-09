@@ -85,12 +85,12 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "43cee8ce-b70e-437d-9deb-c8f12bdae251"
-      },
       "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo",
       "EXPO_PUBLIC_NEWELL_API_URL": "https://newell.fastshot.ai",
-      "EXPO_PUBLIC_PROJECT_ID": "6f21e3fb-3030-44a5-b579-59ee87110735"
+      "EXPO_PUBLIC_PROJECT_ID": "6f21e3fb-3030-44a5-b579-59ee87110735",
+      "eas": {
+        "projectId": "43cee8ce-b70e-437d-9deb-c8f12bdae251"
+      }
     },
     "owner": "glougheed"
   }
