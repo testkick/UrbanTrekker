@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { Mission, ActiveMission, MissionState, RouteCoordinate } from '@/types/mission';
-import { generateMissions, getLocationName } from '@/services/missionGenerator';
+import { generateMissionsWithRealPOIs, getLocationName } from '@/services/missionGenerator';
 import { generateRewardText } from '@/services/rewardGenerator';
 import {
   saveCompletedMission,
@@ -125,8 +125,9 @@ export const useMission = (): UseMissionResult => {
           });
       }
 
-      // Pass location to generateMissions for context-aware mission generation
-      const generatedMissions = await generateMissions(location);
+      // Pass location to enhanced HIGH-QUALITY DISCOVERY ENGINE
+      // This will search for real POIs and generate missions to them
+      const generatedMissions = await generateMissionsWithRealPOIs(location);
       setMissions(generatedMissions);
       setState('selecting');
     } catch (err) {
@@ -143,39 +144,52 @@ export const useMission = (): UseMissionResult => {
       setState('active');
       setMissions([]);
 
-      // Calculate initial goal coordinate based on step target and bearing
-      const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
-      let goalCoord = projectCoordinate(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        estimatedDistanceMeters,
-        mission.targetBearing
-      );
-
+      let goalCoord: { latitude: number; longitude: number };
       let poiName: string | undefined;
       let poiAddress: string | undefined;
       let streetPath: RouteCoordinate[] | undefined;
 
-      // Try to find a real POI matching the destination type
-      console.log(`🔍 Searching for ${mission.destinationType} POI...`);
-      const poiResult = await findPOIInDirection(
-        currentLocation,
-        mission.targetBearing,
-        estimatedDistanceMeters,
-        mission.destinationType
-      );
-
-      if (poiResult.success && poiResult.poi) {
-        console.log(`✅ Found POI: ${poiResult.poi.name}`);
-        // Snap goal to the actual POI location
+      // ENHANCED: Check if mission has real POI data from discovery engine
+      if (mission.realPOI) {
+        console.log(`🏆 Using real POI from discovery engine: ${mission.realPOI.name}`);
         goalCoord = {
-          latitude: poiResult.poi.latitude,
-          longitude: poiResult.poi.longitude,
+          latitude: mission.realPOI.latitude,
+          longitude: mission.realPOI.longitude,
         };
-        poiName = poiResult.poi.name;
-        poiAddress = poiResult.poi.address;
+        poiName = mission.realPOI.name;
+        poiAddress = mission.realPOI.address;
       } else {
-        console.log('⚠️ No POI found, using projected coordinate');
+        // Legacy path: Calculate coordinate based on step target and bearing
+        console.log('⚠️ No realPOI data, using legacy projection method');
+        const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
+        goalCoord = projectCoordinate(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          estimatedDistanceMeters,
+          mission.targetBearing
+        );
+
+        // Try to find a real POI matching the destination type
+        console.log(`🔍 Searching for ${mission.destinationType} POI...`);
+        const poiResult = await findPOIInDirection(
+          currentLocation,
+          mission.targetBearing,
+          estimatedDistanceMeters,
+          mission.destinationType
+        );
+
+        if (poiResult.success && poiResult.poi) {
+          console.log(`✅ Found POI: ${poiResult.poi.name}`);
+          // Snap goal to the actual POI location
+          goalCoord = {
+            latitude: poiResult.poi.latitude,
+            longitude: poiResult.poi.longitude,
+          };
+          poiName = poiResult.poi.name;
+          poiAddress = poiResult.poi.address;
+        } else {
+          console.log('⚠️ No POI found, using projected coordinate');
+        }
       }
 
       // Create goal coordinate with timestamp

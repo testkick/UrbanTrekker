@@ -81,6 +81,11 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
     }, 100);
   }, [mission, onSelect, scale]);
 
+  // Check if this is a premium POI mission
+  const hasRealPOI = mission.realPOI !== undefined;
+  const isTopRated = mission.realPOI && mission.realPOI.rating >= 4.5;
+  const isOpenNow = mission.realPOI?.isOpenNow;
+
   return (
     <AnimatedTouchable
       style={[styles.card, animatedStyle]}
@@ -93,14 +98,53 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
         <Text style={styles.vibeLabel}>{vibeConfig.label}</Text>
       </View>
 
+      {/* Top Right Badges */}
+      <View style={styles.badgesContainer}>
+        {/* Open Now Badge */}
+        {isOpenNow && (
+          <View style={styles.openNowBadge}>
+            <View style={styles.liveIndicator} />
+            <Text style={styles.openNowText}>Open Now</Text>
+          </View>
+        )}
+
+        {/* Top Rated Badge */}
+        {isTopRated && (
+          <View style={styles.topRatedBadge}>
+            <Ionicons name="star" size={12} color="#FFD700" />
+            <Text style={styles.topRatedText}>Top Rated</Text>
+          </View>
+        )}
+      </View>
+
       {/* Content */}
       <View style={styles.content}>
+        {/* Real Business Name (if available) */}
+        {hasRealPOI && mission.realPOI && (
+          <View style={styles.businessNameContainer}>
+            <Ionicons name="location" size={14} color={vibeConfig.color} />
+            <Text style={[styles.businessName, { color: vibeConfig.color }]} numberOfLines={1}>
+              {mission.realPOI.name}
+            </Text>
+          </View>
+        )}
+
         <Text style={styles.title} numberOfLines={1}>
           {mission.title}
         </Text>
         <Text style={styles.description} numberOfLines={2}>
           {mission.description}
         </Text>
+
+        {/* Rating Display (if available) */}
+        {mission.realPOI && mission.realPOI.rating > 0 && (
+          <View style={styles.ratingContainer}>
+            <Ionicons name="star" size={14} color="#FFD700" />
+            <Text style={styles.ratingText}>
+              {mission.realPOI.rating.toFixed(1)} • {mission.realPOI.userRatingsTotal || 0} reviews
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Step Target */}
@@ -247,6 +291,7 @@ const styles = StyleSheet.create({
     ...Shadows.small,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
+    position: 'relative',
   },
   vibeBadge: {
     width: 50,
@@ -265,13 +310,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
+  badgesContainer: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'column',
+    gap: 4,
+    zIndex: 10,
+  },
+  openNowBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+    gap: 4,
+  },
+  liveIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4CAF50',
+  },
+  openNowText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#4CAF50',
+    letterSpacing: 0.5,
+  },
+  topRatedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    gap: 4,
+  },
+  topRatedText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B8860B',
+    letterSpacing: 0.5,
+  },
   content: {
     flex: 1,
     marginRight: Spacing.sm,
   },
+  businessNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 4,
+  },
+  businessName: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
   title: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
+    fontSize: FontSizes.md,
+    fontWeight: '600',
     color: Colors.text,
     marginBottom: 4,
   },
@@ -280,6 +384,18 @@ const styles = StyleSheet.create({
     color: Colors.text,
     opacity: 0.7,
     lineHeight: 18,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: FontSizes.xs,
+    color: Colors.text,
+    opacity: 0.8,
+    fontWeight: '500',
   },
   targetContainer: {
     flexDirection: 'row',

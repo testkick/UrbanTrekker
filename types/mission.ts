@@ -65,6 +65,17 @@ export interface Mission {
   destinationNarrative: string;
   /** Optional destination archetype (e.g., "A Secret Garden", "Local Sourdough Sanctuary") */
   destinationArchetype?: string;
+  /** Real POI data from Google Places (for High-Quality Discovery Engine) */
+  realPOI?: {
+    name: string;
+    address: string;
+    rating: number;
+    userRatingsTotal: number;
+    isOpenNow: boolean;
+    latitude: number;
+    longitude: number;
+    placeId: string;
+  };
 }
 
 export interface ActiveMission extends Mission {

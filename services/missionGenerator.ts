@@ -6,6 +6,7 @@
 import { generateText } from '@fastshot/ai';
 import { Mission, MissionVibe, EnvironmentType as MissionEnvironmentType, DestinationType } from '@/types/mission';
 import { reverseGeocode as googleReverseGeocode, getDisplayName } from '@/services/googleGeocoding';
+import { searchMultiTierPOIs, POI } from '@/services/googlePlaces';
 
 // Location context for missions
 export interface LocationContext {
@@ -719,5 +720,245 @@ Respond with ONLY a valid JSON array of 6 missions:
       environmentType,
       generatedAt: new Date(),
     }));
+  }
+};
+
+/**
+ * ENHANCED: Generate missions with real POI data from Google Places
+ * This is the HIGH-QUALITY DISCOVERY ENGINE that searches for real businesses/landmarks
+ */
+export const generateMissionsWithRealPOIs = async (location?: LocationContext): Promise<Mission[]> => {
+  console.log('🎯 HIGH-QUALITY DISCOVERY ENGINE - Starting...');
+
+  if (!location) {
+    console.warn('⚠️ No location provided, falling back to standard generation');
+    return generateMissions(location);
+  }
+
+  try {
+    const { period, mood } = getTimeContext();
+
+    // Get detailed location context
+    const locationDetails = await getDetailedLocation(location);
+    const environmentType = detectEnvironmentType(locationDetails);
+
+    console.log(`📍 Location: ${locationDetails.displayName}`);
+    console.log(`🌍 Environment: ${environmentType}`);
+    console.log(`⏰ Time: ${period} (${mood})`);
+
+    // Execute 6-tier parallel POI search (Chill, Discovery, Workout)
+    const poiSearchResult = await searchMultiTierPOIs(location, 4.0);
+
+    if (!poiSearchResult.success ||
+        (poiSearchResult.tierResults.chill.length === 0 &&
+         poiSearchResult.tierResults.discovery.length === 0 &&
+         poiSearchResult.tierResults.workout.length === 0)) {
+      console.warn('⚠️ No high-quality POIs found, falling back to standard generation');
+      return generateMissions(location);
+    }
+
+    const { chill, discovery, workout } = poiSearchResult.tierResults;
+
+    console.log('✅ Found high-quality POIs:');
+    console.log(`  Chill tier: ${chill.length} POIs`);
+    console.log(`  Discovery tier: ${discovery.length} POIs`);
+    console.log(`  Workout tier: ${workout.length} POIs`);
+
+    // Build POI context for AI prompt
+    const buildPOIContext = (poi: POI, index: number) => {
+      return `
+POI #${index + 1}:
+- Name: "${poi.name}"
+- Type: ${poi.types?.join(', ') || 'N/A'}
+- Rating: ${poi.rating}★ (${poi.userRatingsTotal || 0} reviews)
+- Address: ${poi.address}
+- Status: ${poi.isOpenNow ? '🟢 OPEN NOW' : '⚪ Status Unknown'}`;
+    };
+
+    const chillPOIContext = chill.map((poi, i) => buildPOIContext(poi, i)).join('\n');
+    const discoveryPOIContext = discovery.map((poi, i) => buildPOIContext(poi, i)).join('\n');
+    const workoutPOIContext = workout.map((poi, i) => buildPOIContext(poi, i)).join('\n');
+
+    // Build rich location context for AI
+    const locationContext = [
+      `PRIMARY LOCATION: ${locationDetails.displayName}`,
+      locationDetails.neighborhood ? `NEIGHBORHOOD: ${locationDetails.neighborhood}` : null,
+      locationDetails.street ? `STREET AREA: ${locationDetails.street}` : null,
+      locationDetails.landmark ? `LANDMARK: ${locationDetails.landmark}` : null,
+    ].filter(Boolean).join('\n');
+
+    // Get environment-specific descriptors
+    const envDescriptors = getEnvironmentDescriptors(environmentType);
+
+    // ENHANCED PROMPT with Real POI Data
+    const prompt = `You are a LOCAL ADVENTURE GUIDE and URBAN EXPLORER NARRATOR creating personalized walking quests for Stepquest explorers.
+
+🌍 LOCATION INTELLIGENCE:
+${locationContext}
+
+ENVIRONMENT TYPE: ${environmentType.toUpperCase()}
+${envDescriptors}
+
+TIME CONTEXT: ${period} (atmosphere: ${mood})
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏆 REAL-WORLD DESTINATIONS DISCOVERED:
+
+CHILL TIER (500m-1km):
+${chillPOIContext || 'No POIs found in this tier'}
+
+DISCOVERY TIER (1.5km-3km):
+${discoveryPOIContext || 'No POIs found in this tier'}
+
+WORKOUT TIER (4km-6km):
+${workoutPOIContext || 'No POIs found in this tier'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 YOUR MISSION: Create 6 IMMERSIVE walking adventures to these REAL businesses and landmarks.
+
+CRITICAL REQUIREMENTS:
+✓ You MUST use the ACTUAL business names provided above (e.g., "Walk to Blue Bottle Coffee")
+✓ Write a compelling "Why Visit" story for each REAL destination
+✓ Incorporate the business type and atmosphere into the narrative
+✓ Reference the SPECIFIC features of these real places
+✓ Make explorers excited to discover these HIGH-RATED local gems
+
+Generate TWO missions for each tier (use POIs from matching tier):
+
+1️⃣ CHILL (2 missions) - Peaceful walks to nearby spots (800-1500 steps each)
+Use POIs from CHILL TIER above. Create short, relaxing journeys.
+
+2️⃣ DISCOVERY (2 missions) - Exploratory walks to interesting places (2000-3500 steps each)
+Use POIs from DISCOVERY TIER above. Create curiosity-driven adventures.
+
+3️⃣ WORKOUT (2 missions) - Challenging walks to distant destinations (4000-7000 steps each)
+Use POIs from WORKOUT TIER above. Create high-energy expeditions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FORMAT REQUIREMENTS:
+- vibe: "chill" | "discovery" | "workout"
+- title: "Walk to [ACTUAL POI NAME]" (max 35 chars, must include real business name)
+- description: Immersive story about WHY this place is special (max 150 chars)
+- stepTarget: Specific number within vibe range
+- destinationType: Type that matches the POI (bakery/cafe/park/etc.)
+- destinationArchetype: Poetic title for this destination (max 40 chars)
+- destinationNarrative: One sentence WHY visit (max 80 chars)
+
+EXAMPLE:
+{"vibe": "chill", "title": "Walk to Bluebells Bakery", "description": "Follow the scent of fresh croissants to this artisan bakery where locals gather. A cozy haven for morning pastries.", "stepTarget": 900, "destinationType": "bakery", "destinationArchetype": "The Sourdough Sanctuary", "destinationNarrative": "Where hand-crafted bread meets neighborhood charm"}
+
+Respond with ONLY a valid JSON array of 6 missions:
+[
+  {"vibe": "chill", "title": "Walk to [POI Name]", ...},
+  {"vibe": "chill", "title": "Walk to [POI Name]", ...},
+  {"vibe": "discovery", "title": "Walk to [POI Name]", ...},
+  {"vibe": "discovery", "title": "Walk to [POI Name]", ...},
+  {"vibe": "workout", "title": "Walk to [POI Name]", ...},
+  {"vibe": "workout", "title": "Walk to [POI Name]", ...}
+]`;
+
+    // Generate missions using AI with real POI data
+    const response = await generateText({ prompt });
+
+    if (!response) {
+      console.warn('⚠️ Empty AI response, falling back to standard generation');
+      return generateMissions(location);
+    }
+
+    const parsedMissions = parseAIResponse(response);
+
+    // Map missions to POIs
+    const missions: Mission[] = [];
+
+    const vibeToTier: Record<MissionVibe, POI[]> = {
+      chill: chill,
+      discovery: discovery,
+      workout: workout,
+    };
+
+    const vibeStepRanges: Record<MissionVibe, [number, number]> = {
+      chill: [800, 1500],
+      discovery: [2000, 3500],
+      workout: [4000, 7000],
+    };
+
+    // For each vibe, create 2 missions
+    (['chill', 'discovery', 'workout'] as MissionVibe[]).forEach((vibe, vibeIndex) => {
+      const vibePOIs = vibeToTier[vibe];
+      const vibeMissions = parsedMissions.filter(m => m.vibe === vibe);
+      const [minSteps, maxSteps] = vibeStepRanges[vibe];
+
+      // Create first mission for this vibe
+      const poi1 = vibePOIs[0];
+      if (poi1) {
+        missions.push({
+          id: generateId(),
+          vibe,
+          title: vibeMissions[0]?.title || `Walk to ${poi1.name}`,
+          description: vibeMissions[0]?.description || `Discover this highly-rated local destination.`,
+          stepTarget: vibeMissions[0]?.stepTarget || Math.floor(minSteps + (maxSteps - minSteps) * 0.4),
+          targetBearing: 0, // Will be calculated when user location is known
+          environmentType,
+          destinationType: vibeMissions[0]?.destinationType || 'mystery',
+          destinationArchetype: vibeMissions[0]?.destinationArchetype || poi1.name,
+          destinationNarrative: vibeMissions[0]?.destinationNarrative || `A ${poi1.rating}★ rated local gem`,
+          realPOI: {
+            name: poi1.name,
+            address: poi1.address,
+            rating: poi1.rating || 0,
+            userRatingsTotal: poi1.userRatingsTotal || 0,
+            isOpenNow: poi1.isOpenNow || false,
+            latitude: poi1.latitude,
+            longitude: poi1.longitude,
+            placeId: poi1.placeId,
+          },
+          generatedAt: new Date(),
+        });
+      }
+
+      // Create second mission for this vibe
+      const poi2 = vibePOIs[1];
+      if (poi2) {
+        missions.push({
+          id: generateId(),
+          vibe,
+          title: vibeMissions[1]?.title || `Walk to ${poi2.name}`,
+          description: vibeMissions[1]?.description || `Explore this popular local destination.`,
+          stepTarget: vibeMissions[1]?.stepTarget || Math.floor(minSteps + (maxSteps - minSteps) * 0.7),
+          targetBearing: 0, // Will be calculated when user location is known
+          environmentType,
+          destinationType: vibeMissions[1]?.destinationType || 'mystery',
+          destinationArchetype: vibeMissions[1]?.destinationArchetype || poi2.name,
+          destinationNarrative: vibeMissions[1]?.destinationNarrative || `A ${poi2.rating}★ rated local favorite`,
+          realPOI: {
+            name: poi2.name,
+            address: poi2.address,
+            rating: poi2.rating || 0,
+            userRatingsTotal: poi2.userRatingsTotal || 0,
+            isOpenNow: poi2.isOpenNow || false,
+            latitude: poi2.latitude,
+            longitude: poi2.longitude,
+            placeId: poi2.placeId,
+          },
+          generatedAt: new Date(),
+        });
+      }
+    });
+
+    // If we don't have enough missions, fall back to standard generation
+    if (missions.length < 3) {
+      console.warn('⚠️ Not enough POI-based missions, falling back to standard generation');
+      return generateMissions(location);
+    }
+
+    console.log(`✅ Generated ${missions.length} missions with real POI data`);
+    return missions;
+  } catch (error) {
+    console.error('❌ Error in high-quality discovery engine:', error);
+    console.log('Falling back to standard mission generation');
+    return generateMissions(location);
   }
 };
