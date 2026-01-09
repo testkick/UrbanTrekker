@@ -34,6 +34,26 @@ export interface CompletedMission {
   durationMinutes: number;
   /** GPS route coordinates recorded during the mission */
   routeCoordinates?: RouteCoordinate[];
+
+  // High-Quality Discovery Engine fields
+  // POI data from Google Places
+  poiName?: string;
+  poiAddress?: string;
+  poiRating?: number;
+  poiReviewCount?: number;
+  poiIsOpenNow?: boolean;
+  poiPlaceId?: string;
+  poiLatitude?: number;
+  poiLongitude?: number;
+
+  // AI narrative data
+  destinationType?: string;
+  destinationArchetype?: string;
+  destinationNarrative?: string;
+
+  // Completion metrics
+  completionType?: 'steps' | 'proximity';
+  environmentType?: string;
 }
 
 // Default values
@@ -86,6 +106,21 @@ const missionRowToCompleted = (row: MissionRow): CompletedMission => ({
   completedAt: row.completed_at,
   durationMinutes: row.duration_minutes,
   routeCoordinates: row.route_coordinates || undefined,
+
+  // High-Quality Discovery Engine fields
+  poiName: row.poi_name || undefined,
+  poiAddress: row.poi_address || undefined,
+  poiRating: row.poi_rating || undefined,
+  poiReviewCount: row.poi_review_count || undefined,
+  poiIsOpenNow: row.poi_is_open_now || undefined,
+  poiPlaceId: row.poi_place_id || undefined,
+  poiLatitude: row.poi_latitude || undefined,
+  poiLongitude: row.poi_longitude || undefined,
+  destinationType: row.destination_type || undefined,
+  destinationArchetype: row.destination_archetype || undefined,
+  destinationNarrative: row.destination_narrative || undefined,
+  completionType: row.completion_type || undefined,
+  environmentType: row.environment_type || undefined,
 });
 
 // ============================================
@@ -230,6 +265,7 @@ const getCloudMissionHistory = async (userId: string): Promise<CompletedMission[
 /**
  * Save mission to Supabase
  * Includes anonymous device ID for journey analytics
+ * ENHANCED: Persists high-quality discovery data (POI details, AI narratives, completion metrics)
  */
 const saveCloudMission = async (userId: string, mission: CompletedMission): Promise<void> => {
   try {
@@ -251,11 +287,36 @@ const saveCloudMission = async (userId: string, mission: CompletedMission): Prom
         duration_minutes: mission.durationMinutes,
         route_coordinates: mission.routeCoordinates || [],
         device_id: deviceId, // Tag with anonymous device ID
+
+        // High-Quality Discovery Engine fields
+        // POI data from Google Places
+        poi_name: mission.poiName || null,
+        poi_address: mission.poiAddress || null,
+        poi_rating: mission.poiRating || null,
+        poi_review_count: mission.poiReviewCount || null,
+        poi_is_open_now: mission.poiIsOpenNow || null,
+        poi_place_id: mission.poiPlaceId || null,
+        poi_latitude: mission.poiLatitude || null,
+        poi_longitude: mission.poiLongitude || null,
+
+        // AI narrative data
+        destination_type: mission.destinationType || null,
+        destination_archetype: mission.destinationArchetype || null,
+        destination_narrative: mission.destinationNarrative || null,
+
+        // Completion metrics
+        completion_type: mission.completionType || null,
+        environment_type: mission.environmentType || null,
       });
 
     if (error) {
       console.error('Error saving cloud mission:', error);
       throw error;
+    }
+
+    // Log successful save with POI details
+    if (mission.poiName) {
+      console.log(`✅ Saved mission to cloud with POI: ${mission.poiName} (${mission.poiRating}★)`);
     }
   } catch (error) {
     console.error('Error saving cloud mission:', error);

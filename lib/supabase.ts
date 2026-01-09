@@ -74,4 +74,24 @@ export interface MissionRow {
   created_at: string;
   route_coordinates: RouteCoordinateRow[] | null;
   device_id: string | null; // Anonymous device ID for journey analytics
+
+  // High-Quality Discovery Engine fields
+  // POI data from Google Places
+  poi_name: string | null;
+  poi_address: string | null;
+  poi_rating: number | null;
+  poi_review_count: number | null;
+  poi_is_open_now: boolean | null;
+  poi_place_id: string | null;
+  poi_latitude: number | null;
+  poi_longitude: number | null;
+
+  // AI narrative data
+  destination_type: string | null;
+  destination_archetype: string | null;
+  destination_narrative: string | null;
+
+  // Completion metrics
+  completion_type: 'steps' | 'proximity' | null;
+  environment_type: string | null;
 }

@@ -399,7 +399,7 @@ export const useMission = (): UseMissionResult => {
       const endTime = Date.now();
       const durationMinutes = Math.round((endTime - startTime) / 60000);
 
-      // Save to storage (includes route coordinates)
+      // Save to storage (includes route coordinates and high-quality discovery data)
       const completedMission: CompletedMission = {
         id: activeMission.id,
         title: activeMission.title,
@@ -411,6 +411,26 @@ export const useMission = (): UseMissionResult => {
         completedAt: new Date().toISOString(),
         durationMinutes,
         routeCoordinates: activeMission.routeCoordinates,
+
+        // High-Quality Discovery Engine fields
+        // Extract POI data from mission if available
+        poiName: activeMission.poiName,
+        poiAddress: activeMission.poiAddress,
+        poiRating: activeMission.realPOI?.rating,
+        poiReviewCount: activeMission.realPOI?.userRatingsTotal,
+        poiIsOpenNow: activeMission.realPOI?.isOpenNow,
+        poiPlaceId: activeMission.realPOI?.placeId,
+        poiLatitude: activeMission.realPOI?.latitude,
+        poiLongitude: activeMission.realPOI?.longitude,
+
+        // AI narrative data
+        destinationType: activeMission.destinationType,
+        destinationArchetype: activeMission.destinationArchetype,
+        destinationNarrative: activeMission.destinationNarrative,
+
+        // Completion metrics
+        completionType: activeMission.completionType,
+        environmentType: activeMission.environmentType,
       };
 
       await Promise.all([
