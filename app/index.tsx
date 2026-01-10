@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Text,
-  TouchableOpacity,
   Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +17,7 @@ import { DestinationMarker } from '@/components/DestinationMarker';
 import { DiscoveryCard } from '@/components/DiscoveryCard';
 import { DiagnosticPanel } from '@/components/DiagnosticPanel';
 import { ScanAreaButton } from '@/components/ScanAreaButton';
+import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { QuestCardContainer } from '@/components/QuestCard';
 import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
 import { useLocation } from '@/hooks/useLocation';
@@ -429,32 +429,32 @@ export default function ExplorerDashboard() {
         destinationNarrative={activeMission?.destinationNarrative}
       />
 
-      {/* Recenter Button - Native only, hidden during mission selection */}
-      {!isWeb && !isSelecting && (
-        <TouchableOpacity
-          style={[
-            styles.recenterButton,
-            { bottom: insets.bottom + (isActive ? 180 : 120) },
-          ]}
-          onPress={handleCenterOnUser}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="locate" size={24} color={Colors.primary} />
-        </TouchableOpacity>
-      )}
-
-      {/* Journal Button - Hidden during mission selection */}
+      {/* Premium Floating Action Buttons - Hidden during mission selection and completion */}
       {!isSelecting && !isCompleted && (
-        <TouchableOpacity
-          style={[
-            styles.journalButton,
-            { bottom: insets.bottom + (isActive ? 180 : 120) },
-          ]}
-          onPress={() => router.push('/journal')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="journal" size={24} color={Colors.primary} />
-        </TouchableOpacity>
+        <>
+          {/* Journal Button - Left side with label for clarity */}
+          <FloatingActionButton
+            icon="book"
+            label="Journal"
+            onPress={() => router.push('/journal')}
+            position="left"
+            bottom={insets.bottom + (isActive ? 190 : 130)}
+            color={Colors.primary}
+            size="medium"
+          />
+
+          {/* Re-center button - Right side (native only) */}
+          {!isWeb && (
+            <FloatingActionButton
+              icon="locate"
+              onPress={handleCenterOnUser}
+              position="right"
+              bottom={insets.bottom + (isActive ? 190 : 130)}
+              color={Colors.accent}
+              size="medium"
+            />
+          )}
+        </>
       )}
 
       {/* Permission/Error Banner */}
@@ -467,9 +467,9 @@ export default function ExplorerDashboard() {
         </View>
       )}
 
-      {/* Scan Area Button - Shown in idle state */}
+      {/* Scan Area Button - Positioned above floating buttons to avoid overlap */}
       {showScanButton && (
-        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + Spacing.md }]}>
+        <View style={[styles.scanButtonContainer, { bottom: insets.bottom + 50 }]}>
           <ScanAreaButton
             onPress={handleScanArea}
             onLongPress={() => setShowDiagnostics(true)}
@@ -554,28 +554,7 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  recenterButton: {
-    position: 'absolute',
-    right: Spacing.md,
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.medium,
-  },
-  journalButton: {
-    position: 'absolute',
-    left: Spacing.md,
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.medium,
-  },
+  // Floating action buttons now use FloatingActionButton component
   errorBanner: {
     position: 'absolute',
     left: Spacing.md,

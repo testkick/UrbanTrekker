@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,8 +9,10 @@ import Animated, {
   withSpring,
   Easing,
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '@/constants/theme';
+import * as Haptics from 'expo-haptics';
+import { Colors, Spacing, BorderRadius, FontSizes } from '@/constants/theme';
 
 interface ScanAreaButtonProps {
   onPress: () => void;
@@ -131,8 +133,13 @@ const ScanAreaButtonComponent: React.FC<ScanAreaButtonProps> = ({
     opacity: 0.4 * (1 - radarRing3.value),
   }));
 
-  const handlePress = () => {
+  const handlePress = async () => {
     if (!isScanning && !disabled) {
+      // Haptic feedback
+      if (Platform.OS !== 'web') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+
       // Button press animation
       pulseScale.value = withSequence(
         withSpring(0.95, { damping: 15 }),
@@ -158,34 +165,45 @@ const ScanAreaButtonComponent: React.FC<ScanAreaButtonProps> = ({
         </>
       )}
 
-      {/* Main button */}
+      {/* Main button with frosted glass */}
       <TouchableOpacity
-        style={[
-          styles.button,
-          isScanning && styles.buttonScanning,
-          disabled && styles.buttonDisabled,
-        ]}
         onPress={handlePress}
         onLongPress={onLongPress}
         delayLongPress={800}
-        activeOpacity={0.9}
+        activeOpacity={0.95}
         disabled={disabled || isScanning}
+        style={[
+          styles.buttonWrapper,
+          disabled && styles.buttonDisabled,
+        ]}
       >
-        {isScanning ? (
-          <View style={styles.scanningContent}>
-            <Animated.View style={iconStyle}>
-              <Ionicons name="radio" size={24} color={Colors.white} />
-            </Animated.View>
-            <Text style={styles.scanningText}>Searching High-Quality POIs...</Text>
-            <ActivityIndicator size="small" color={Colors.white} />
-          </View>
-        ) : (
-          <View style={styles.idleContent}>
-            <Ionicons name="scan" size={24} color={Colors.white} />
-            <Text style={styles.buttonText}>Scan Area</Text>
-            <Ionicons name="chevron-forward" size={20} color={Colors.white} />
-          </View>
-        )}
+        <BlurView
+          intensity={Platform.OS === 'ios' ? 90 : 70}
+          tint={isScanning ? 'dark' : 'light'}
+          style={[
+            styles.button,
+            isScanning && styles.buttonScanning,
+          ]}
+        >
+          {isScanning ? (
+            <View style={styles.scanningContent}>
+              <Animated.View style={iconStyle}>
+                <Ionicons name="radio" size={24} color={Colors.white} />
+              </Animated.View>
+              <Text style={styles.scanningText}>Searching High-Quality POIs...</Text>
+              <ActivityIndicator size="small" color={Colors.white} />
+            </View>
+          ) : (
+            <View style={styles.idleContent}>
+              <Ionicons name="scan" size={28} color={Colors.white} />
+              <Text style={styles.buttonText}>Scan Area</Text>
+              <Ionicons name="chevron-forward" size={22} color={Colors.white} />
+            </View>
+          )}
+        </BlurView>
+
+        {/* Premium shadow overlay */}
+        <View style={styles.shadowOverlay} />
       </TouchableOpacity>
 
       {/* Helper text */}
@@ -213,23 +231,50 @@ const styles = StyleSheet.create({
     top: -10,
     width: '100%',
     height: 70,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     backgroundColor: Colors.accent,
   },
-  button: {
+  buttonWrapper: {
     width: '100%',
-    height: 56,
-    backgroundColor: Colors.accent,
-    borderRadius: BorderRadius.lg,
+    height: 60,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    // Premium shadow for depth
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  button: {
+    flex: 1,
+    backgroundColor: Colors.accent, // Fallback for non-blur platforms
+    borderRadius: BorderRadius.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Shadows.medium,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   buttonScanning: {
     backgroundColor: Colors.primary,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   buttonDisabled: {
-    backgroundColor: 'rgba(255, 111, 0, 0.5)',
+    opacity: 0.5,
+  },
+  shadowOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    pointerEvents: 'none',
   },
   idleContent: {
     flexDirection: 'row',
@@ -240,7 +285,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.white,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   scanningContent: {
     flexDirection: 'row',
@@ -270,9 +318,9 @@ const styles = StyleSheet.create({
   radarRing: {
     position: 'absolute',
     width: '100%',
-    height: 56,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
+    height: 60,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 3,
     borderStyle: 'solid',
   },
   radarRing1: {
