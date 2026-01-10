@@ -194,8 +194,8 @@ export default function ExplorerDashboard() {
   const isWeb = Platform.OS === 'web';
 
   // Update mission progress when steps change or location updates
-  // Note: activeMission is NOT in dependencies to avoid infinite loop
-  // (updateMissionProgress modifies activeMission state)
+  // FIXED: Use location.latitude/longitude instead of location object to prevent
+  // infinite loops from object reference changes
   useEffect(() => {
     if (activeMission && missionState === 'active' && location) {
       updateMissionProgress(steps, {
@@ -204,16 +204,16 @@ export default function ExplorerDashboard() {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steps, location, missionState]);
+  }, [steps, location?.latitude, location?.longitude, missionState, activeMission, updateMissionProgress]);
 
   // Record GPS route when location updates during active mission
+  // FIXED: Use location.latitude/longitude to prevent infinite loops
   useEffect(() => {
     if (location && missionState === 'active') {
       addRoutePoint(location.latitude, location.longitude);
     }
-    // addRoutePoint is stable (wrapped in useCallback), so we exclude it from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location, missionState]);
+  }, [location?.latitude, location?.longitude, missionState, addRoutePoint]);
 
   // Center map on user ONCE when location first becomes available
   const hasInitiallyCenter = useRef(false);
@@ -231,7 +231,8 @@ export default function ExplorerDashboard() {
         1000
       );
     }
-  }, [location, isMapReady, isWeb]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location?.latitude, location?.longitude, isMapReady, isWeb]);
 
   const handleCenterOnUser = useCallback(() => {
     if (!isWeb && location && mapRef.current) {
@@ -276,13 +277,15 @@ export default function ExplorerDashboard() {
   }, [cancelMission]);
 
   // Debug: Log streetPath changes with detailed coordinates (only on streetPath change)
+  // FIXED: Only depend on extracted values to prevent excessive logging
   const streetPathLength = activeMission?.streetPath?.length;
   const missionTitle = activeMission?.title;
+  const hasStreetPath = !!activeMission?.streetPath;
   useEffect(() => {
     if (activeMission) {
       console.log('🎯 Active Mission Street Path Status:');
       console.log(`  Mission: ${missionTitle}`);
-      console.log(`  Has streetPath: ${activeMission.streetPath ? 'Yes' : 'No'}`);
+      console.log(`  Has streetPath: ${hasStreetPath ? 'Yes' : 'No'}`);
       if (activeMission.streetPath && activeMission.streetPath.length > 0) {
         console.log(`  Street path length: ${activeMission.streetPath.length} points`);
         console.log(`  First point: (${activeMission.streetPath[0].latitude.toFixed(6)}, ${activeMission.streetPath[0].longitude.toFixed(6)})`);
@@ -292,7 +295,8 @@ export default function ExplorerDashboard() {
         console.log(`  ⚠️ No street path - will render straight line`);
       }
     }
-  }, [streetPathLength, missionTitle, activeMission]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streetPathLength, missionTitle, hasStreetPath]);
 
   if (isLoading) {
     return (
