@@ -21,10 +21,16 @@ module.exports = ({ config }) => {
     name: config.name || 'Stepquest',
     slug: config.slug || 'stepquest',
     extra: {
+      // Preserve existing extra fields (including eas.projectId)
+      ...(config.extra || {}),
       // Expose environment variables to the app via expo-constants
       EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: googleMapsApiKey,
       EXPO_PUBLIC_NEWELL_API_URL: process.env.EXPO_PUBLIC_NEWELL_API_URL || 'https://newell.fastshot.ai',
       EXPO_PUBLIC_PROJECT_ID: process.env.EXPO_PUBLIC_PROJECT_ID || '6f21e3fb-3030-44a5-b579-59ee87110735',
+      // Ensure eas.projectId is preserved
+      eas: {
+        ...(config.extra?.eas || {}),
+      },
     },
     ios: {
       ...config.ios,
