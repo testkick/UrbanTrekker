@@ -13,8 +13,12 @@ module.exports = ({ config }) => {
     process.env.GOOGLE_MAPS_API_KEY ||
     'AIzaSyA8rAIJ8RCfSdBamPrN-JxILhHkYiGW0Zo'; // Hardcoded fallback for development
 
+  // Safely extract EAS project ID with fallback
+  const easProjectId = config.extra?.eas?.projectId || '43cee8ce-b70e-437d-9deb-c8f12bdae251';
+
   console.log('📦 App Config Loading...');
   console.log(`  Google Maps API Key: ${googleMapsApiKey ? googleMapsApiKey.substring(0, 10) + '...' : 'NOT FOUND'}`);
+  console.log(`  EAS Project ID: ${easProjectId ? easProjectId.substring(0, 10) + '...' : 'NOT FOUND'}`);
 
   return {
     ...config,
@@ -27,9 +31,9 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: googleMapsApiKey,
       EXPO_PUBLIC_NEWELL_API_URL: process.env.EXPO_PUBLIC_NEWELL_API_URL || 'https://newell.fastshot.ai',
       EXPO_PUBLIC_PROJECT_ID: process.env.EXPO_PUBLIC_PROJECT_ID || '6f21e3fb-3030-44a5-b579-59ee87110735',
-      // Ensure eas.projectId is preserved
+      // Ensure eas.projectId is always set with explicit fallback
       eas: {
-        ...(config.extra?.eas || {}),
+        projectId: easProjectId,
       },
     },
     ios: {
