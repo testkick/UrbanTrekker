@@ -40,6 +40,14 @@ export default function RootLayout() {
               presentation: 'modal',
             }}
           />
+          <Stack.Screen
+            name="auth/callback"
+            options={{
+              headerShown: false,
+              title: 'Confirming...',
+              animation: 'fade',
+            }}
+          />
         </Stack>
       </View>
     </AuthProvider>

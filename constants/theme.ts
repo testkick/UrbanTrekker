@@ -27,6 +27,8 @@ export const Colors = {
   energyHigh: '#4CAF50',
   energyMedium: '#FFC107',
   energyLow: '#F44336',
+  success: '#4CAF50',
+  error: '#F44336',
 
   // Map marker
   markerPulse: 'rgba(46, 125, 50, 0.3)',

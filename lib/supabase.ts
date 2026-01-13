@@ -50,6 +50,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: Platform.OS === 'web',
+    // Configure deep link redirect for mobile authentication
+    ...(Platform.OS !== 'web' && {
+      redirectTo: 'fastshot://auth/callback',
+    }),
   },
 });
 

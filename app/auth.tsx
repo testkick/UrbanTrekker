@@ -163,9 +163,9 @@ export default function AuthScreen() {
       } else {
         if (isSignUp) {
           Alert.alert(
-            'Success!',
-            'Your account has been created. Your local progress has been synced to the cloud.',
-            [{ text: 'OK', onPress: () => router.back() }]
+            'Check Your Email! 📧',
+            'We\'ve sent you a confirmation link. Please check your email and click the link to verify your account.\n\nOnce confirmed, you can sign in and your local progress will be synced to the cloud.',
+            [{ text: 'Got it!', onPress: () => router.back() }]
           );
         } else {
           router.back();
