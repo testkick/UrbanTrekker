@@ -239,90 +239,94 @@ export const HorizontalQuestCarousel: React.FC<HorizontalQuestCarouselProps> = (
 
   return (
     <View style={styles.container}>
-      {/* Gradient backdrop */}
-      <LinearGradient
-        colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.4)', 'rgba(0, 0, 0, 0.7)']}
-        style={styles.backdrop}
-        pointerEvents="none"
-      />
-
-      {/* Blur effect for iOS */}
-      {Platform.OS === 'ios' && (
-        <BlurView intensity={20} style={styles.blurView} tint="dark" />
-      )}
-
-      {/* Dismiss button */}
-      <TouchableOpacity style={styles.dismissButton} onPress={onDismiss}>
-        <View style={styles.dismissButtonInner}>
-          <Text style={styles.dismissButtonText}>✕</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Carousel header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Choose Your Adventure</Text>
-        <Text style={styles.headerSubtitle}>
-          Swipe to preview routes • {missions.length} missions available
-        </Text>
+      {/* Background layer - Blur and gradient effects only */}
+      <View style={styles.backgroundLayer} pointerEvents="none">
+        {/* Blur effect for iOS - only affects background */}
+        {Platform.OS === 'ios' && (
+          <BlurView intensity={30} style={styles.blurView} tint="dark" />
+        )}
+        {/* Gradient backdrop */}
+        <LinearGradient
+          colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.8)']}
+          style={styles.backdrop}
+        />
       </View>
 
-      {/* Horizontal carousel */}
-      <Animated.FlatList
-        ref={flatListRef}
-        data={missions}
-        renderItem={renderMissionCard}
-        keyExtractor={(item) => item.id}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={CARD_WIDTH + CARD_SPACING}
-        decelerationRate="fast"
-        contentContainerStyle={{
-          paddingHorizontal: SIDE_PADDING,
-        }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          {
-            useNativeDriver: true,
-            listener: handleScroll,
-          }
-        )}
-        scrollEventThrottle={16}
-      />
+      {/* Foreground content layer - All interactive content */}
+      <View style={styles.contentLayer}>
+        {/* Dismiss button */}
+        <TouchableOpacity style={styles.dismissButton} onPress={onDismiss}>
+          <View style={styles.dismissButtonInner}>
+            <Text style={styles.dismissButtonText}>✕</Text>
+          </View>
+        </TouchableOpacity>
 
-      {/* Page indicators */}
-      <View style={styles.indicators}>
-        {missions.map((_, index) => {
-          const inputRange = [
-            (index - 1) * (CARD_WIDTH + CARD_SPACING),
-            index * (CARD_WIDTH + CARD_SPACING),
-            (index + 1) * (CARD_WIDTH + CARD_SPACING),
-          ];
+        {/* Carousel header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Choose Your Adventure</Text>
+          <Text style={styles.headerSubtitle}>
+            Swipe to preview routes • {missions.length} missions available
+          </Text>
+        </View>
 
-          const scale = scrollX.interpolate({
-            inputRange,
-            outputRange: [1, 1.5, 1],
-            extrapolate: 'clamp',
-          });
+        {/* Horizontal carousel */}
+        <Animated.FlatList
+          ref={flatListRef}
+          data={missions}
+          renderItem={renderMissionCard}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_WIDTH + CARD_SPACING}
+          decelerationRate="fast"
+          contentContainerStyle={{
+            paddingHorizontal: SIDE_PADDING,
+          }}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            {
+              useNativeDriver: true,
+              listener: handleScroll,
+            }
+          )}
+          scrollEventThrottle={16}
+        />
 
-          const opacity = scrollX.interpolate({
-            inputRange,
-            outputRange: [0.3, 1, 0.3],
-            extrapolate: 'clamp',
-          });
+        {/* Page indicators */}
+        <View style={styles.indicators}>
+          {missions.map((_, index) => {
+            const inputRange = [
+              (index - 1) * (CARD_WIDTH + CARD_SPACING),
+              index * (CARD_WIDTH + CARD_SPACING),
+              (index + 1) * (CARD_WIDTH + CARD_SPACING),
+            ];
 
-          return (
-            <Animated.View
-              key={index}
-              style={[
-                styles.indicator,
-                {
-                  transform: [{ scale }],
-                  opacity,
-                },
-              ]}
-            />
-          );
-        })}
+            const scale = scrollX.interpolate({
+              inputRange,
+              outputRange: [1, 1.5, 1],
+              extrapolate: 'clamp',
+            });
+
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.3, 1, 0.3],
+              extrapolate: 'clamp',
+            });
+
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.indicator,
+                  {
+                    transform: [{ scale }],
+                    opacity,
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -337,19 +341,26 @@ const styles = StyleSheet.create({
     height: 420,
     justifyContent: 'flex-end',
   },
-  backdrop: {
+  backgroundLayer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
   },
   blurView: {
     ...StyleSheet.absoluteFillObject,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  contentLayer: {
+    ...StyleSheet.absoluteFillObject,
     zIndex: 1,
+    justifyContent: 'flex-end',
   },
   dismissButton: {
     position: 'absolute',
     top: 16,
     right: 16,
-    zIndex: 100,
+    zIndex: 10,
   },
   dismissButtonInner: {
     width: 36,
@@ -368,7 +379,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
-    zIndex: 2,
   },
   headerTitle: {
     fontSize: 24,
@@ -503,7 +513,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     gap: 8,
-    zIndex: 2,
   },
   indicator: {
     width: 6,
