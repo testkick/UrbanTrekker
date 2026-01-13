@@ -30,7 +30,7 @@ export const usePermissions = () => {
       const foregroundStatus = await Location.getForegroundPermissionsAsync();
       const locationGranted = foregroundStatus.status === 'granted';
 
-      // Check background location permission (iOS only)
+      // Check background location permission (iOS only) - OPTIONAL
       let backgroundGranted = false;
       if (Platform.OS === 'ios') {
         const backgroundStatus = await Location.getBackgroundPermissionsAsync();
@@ -40,7 +40,8 @@ export const usePermissions = () => {
         backgroundGranted = locationGranted;
       }
 
-      const allGranted = locationGranted && backgroundGranted;
+      // Only require foreground location - background is optional
+      const allGranted = locationGranted;
 
       setStatus({
         location: locationGranted,
@@ -51,7 +52,7 @@ export const usePermissions = () => {
 
       console.log('📍 Permission Status:', {
         location: locationGranted,
-        background: backgroundGranted,
+        background: backgroundGranted ? '✅ granted' : '⚠️ not granted (optional)',
         allGranted,
       });
 

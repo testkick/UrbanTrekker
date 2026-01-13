@@ -12,10 +12,12 @@ import {
   Animated,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { Pedometer } from 'expo-sensors';
 import { Ionicons } from '@expo/vector-icons';
 
 interface PermissionGatewayProps {
@@ -105,27 +107,78 @@ export const PermissionGateway: React.FC<PermissionGatewayProps> = ({
     setIsRequesting(true);
 
     try {
-      // Request location permission (foreground)
+      // Step 1: Request foreground location permission
+      console.log('Requesting foreground location permission...');
       const foregroundResult = await Location.requestForegroundPermissionsAsync();
 
       if (foregroundResult.status !== 'granted') {
         console.warn('Foreground location permission denied');
+        Alert.alert(
+          'Location Required',
+          'Stepquest needs location access to discover hidden gems and guide you on your urban adventure.',
+          [{ text: 'OK' }]
+        );
         setIsRequesting(false);
         return;
       }
+      console.log('Foreground location permission granted');
 
-      // Request background location permission
+      // Step 2: Request motion/pedometer permission (must happen before background location on iOS)
+      console.log('Requesting motion permission...');
+      try {
+        const pedometerAvailable = await Pedometer.isAvailableAsync();
+        if (pedometerAvailable) {
+          const motionResult = await Pedometer.requestPermissionsAsync();
+          if (motionResult.status !== 'granted') {
+            console.warn('Motion permission denied');
+            Alert.alert(
+              'Motion Tracking Optional',
+              'Stepquest tracks your steps to credit your achievements. You can still use the app without this permission.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            console.log('Motion permission granted');
+          }
+        } else {
+          console.log('Pedometer not available on this device');
+        }
+      } catch (motionError) {
+        console.error('Error requesting motion permission:', motionError);
+        // Continue anyway - motion is optional
+      }
+
+      // Step 3: Request background location permission (iOS only, must be AFTER foreground)
+      // This is shown as a second dialog after the user has granted foreground
       if (Platform.OS === 'ios') {
-        const backgroundResult = await Location.requestBackgroundPermissionsAsync();
-        if (backgroundResult.status !== 'granted') {
-          console.warn('Background location permission denied');
+        console.log('Requesting background location permission...');
+        try {
+          const backgroundResult = await Location.requestBackgroundPermissionsAsync();
+          if (backgroundResult.status === 'granted') {
+            console.log('Background location permission granted');
+          } else {
+            console.warn('Background location permission denied');
+            Alert.alert(
+              'Background Tracking Optional',
+              'Your adventure will still work, but step tracking may pause when the app is closed.',
+              [{ text: 'OK' }]
+            );
+          }
+        } catch (backgroundError) {
+          console.error('Error requesting background permission:', backgroundError);
+          // Continue anyway - background is optional
         }
       }
 
-      // Permissions granted - proceed to app
+      // All essential permissions granted - proceed to app
+      console.log('Permission flow complete, proceeding to app');
       onPermissionsGranted();
     } catch (error) {
       console.error('Error requesting permissions:', error);
+      Alert.alert(
+        'Permission Error',
+        'There was an error requesting permissions. Please try again.',
+        [{ text: 'OK' }]
+      );
       setIsRequesting(false);
     }
   };
