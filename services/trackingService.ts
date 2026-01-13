@@ -1,9 +1,11 @@
 /**
  * Tracking Service - Handle App Tracking Transparency and IDFA
  * Manages user tracking preferences and syncs to Supabase
+ *
+ * DEFENSIVE LOADING: This module safely handles environments where
+ * expo-tracking-transparency is not available (Expo Go, Web, Android)
  */
 
-import * as TrackingTransparency from 'expo-tracking-transparency';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
@@ -16,17 +18,51 @@ export interface TrackingResult {
 }
 
 /**
+ * Safely check if tracking transparency module is available
+ * Returns null if module is not available (Expo Go, Web, etc.)
+ */
+const getTrackingModule = async (): Promise<any | null> => {
+  try {
+    // Only attempt to load on iOS
+    if (Platform.OS !== 'ios') {
+      return null;
+    }
+
+    // Dynamically import to avoid crashes in Expo Go
+    const TrackingTransparency = await import('expo-tracking-transparency');
+    return TrackingTransparency;
+  } catch (error) {
+    console.log('📊 Tracking module not available in this environment (Expo Go, dev build without module)');
+    return null;
+  }
+};
+
+/**
  * Request tracking permission and retrieve IDFA
  * Returns the tracking status and IDFA if authorized
+ *
+ * SAFE: Returns 'unavailable' if module not present
  */
 export const requestTracking = async (): Promise<TrackingResult> => {
   try {
     // Only request on iOS 14+
     if (Platform.OS !== 'ios') {
-      console.log('📊 Tracking: Not available on Android');
+      console.log('📊 Tracking: Not available on Android/Web');
       return {
         status: 'unavailable',
         idfa: null,
+      };
+    }
+
+    // Safely get tracking module
+    const TrackingTransparency = await getTrackingModule();
+
+    if (!TrackingTransparency) {
+      console.log('📊 Tracking module not available in this build');
+      return {
+        status: 'unavailable',
+        idfa: null,
+        error: 'Module not available in current environment',
       };
     }
 
@@ -71,10 +107,23 @@ export const requestTracking = async (): Promise<TrackingResult> => {
 
 /**
  * Check current tracking permission status without requesting
+ *
+ * SAFE: Returns 'unavailable' if module not present
  */
 export const getTrackingStatus = async (): Promise<TrackingResult> => {
   try {
     if (Platform.OS !== 'ios') {
+      return {
+        status: 'unavailable',
+        idfa: null,
+      };
+    }
+
+    // Safely get tracking module
+    const TrackingTransparency = await getTrackingModule();
+
+    if (!TrackingTransparency) {
+      console.log('📊 Tracking module not available in this build');
       return {
         status: 'unavailable',
         idfa: null,
@@ -109,6 +158,19 @@ export const getTrackingStatus = async (): Promise<TrackingResult> => {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+};
+
+/**
+ * Check if tracking module is available in current environment
+ * Useful for hiding tracking UI in Expo Go
+ */
+export const isTrackingAvailable = async (): Promise<boolean> => {
+  if (Platform.OS !== 'ios') {
+    return false;
+  }
+
+  const module = await getTrackingModule();
+  return module !== null;
 };
 
 /**
@@ -173,14 +235,19 @@ export const syncTrackingToProfile = async (result: TrackingResult): Promise<boo
 
 /**
  * Request tracking and sync to Supabase in one operation
+ *
+ * SAFE: Gracefully handles unavailable module
  */
 export const requestAndSyncTracking = async (): Promise<TrackingResult> => {
   const result = await requestTracking();
 
-  // Sync to Supabase (but don't block on it)
-  syncTrackingToProfile(result).catch(error => {
-    console.error('📊 Background sync failed:', error);
-  });
+  // Only sync if we got a meaningful result
+  if (result.status !== 'unavailable') {
+    // Sync to Supabase (but don't block on it)
+    syncTrackingToProfile(result).catch(error => {
+      console.error('📊 Background sync failed:', error);
+    });
+  }
 
   return result;
 };
