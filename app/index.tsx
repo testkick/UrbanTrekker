@@ -18,8 +18,10 @@ import { DiscoveryCard } from '@/components/DiscoveryCard';
 import { DiagnosticPanel } from '@/components/DiagnosticPanel';
 import { ScanAreaButton } from '@/components/ScanAreaButton';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
-import { QuestCardContainer } from '@/components/QuestCard';
+import { HorizontalQuestCarousel } from '@/components/HorizontalQuestCarousel';
+import { VibeDestinationMarker } from '@/components/VibeDestinationMarker';
 import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
+import { calculateRegionForTwoPoints } from '@/utils/mapRegion';
 import { useLocation } from '@/hooks/useLocation';
 import { usePedometer } from '@/hooks/usePedometer';
 import { useBattery } from '@/hooks/useBattery';
@@ -325,6 +327,13 @@ export default function ExplorerDashboard() {
   // preventing any perceived location "popping" during the scan animation
   const [frozenScanLocation, setFrozenScanLocation] = useState<typeof location>(null);
 
+  // State for carousel mission preview
+  const [focusedMissionPreview, setFocusedMissionPreview] = useState<{
+    mission: Mission;
+    goalCoordinate: { latitude: number; longitude: number } | null;
+    streetPath: { latitude: number; longitude: number }[] | null;
+  } | null>(null);
+
   const handleScanArea = useCallback(() => {
     // Pass current location for context-aware mission generation
     const locationContext = location ? {
@@ -349,6 +358,7 @@ export default function ExplorerDashboard() {
     // Clear frozen location when mission is selected
     console.log('🔓 Unfreezing location - mission selected');
     setFrozenScanLocation(null);
+    setFocusedMissionPreview(null); // Clear preview state
 
     // Pass current location for goal coordinate calculation
     if (location) {
@@ -367,10 +377,118 @@ export default function ExplorerDashboard() {
     cancelMission(); // Reset to idle state
   }, [cancelMission]);
 
+  // Handle focused mission change in carousel - compute preview data
+  const handleFocusedMissionChange = useCallback(
+    async (mission: Mission, index: number) => {
+      if (!location) return;
+
+      console.log(`🎯 Focused mission changed: ${mission.title} (index ${index})`);
+
+      // Import required services dynamically to avoid circular dependencies
+      const { getWalkingDirections } = await import('@/services/googleDirections');
+
+      try {
+        // Determine goal coordinate
+        let goalCoord: { latitude: number; longitude: number };
+
+        if (mission.realPOI) {
+          // Use real POI coordinates
+          goalCoord = {
+            latitude: mission.realPOI.latitude,
+            longitude: mission.realPOI.longitude,
+          };
+        } else {
+          // Fallback: project coordinate based on step target
+          const estimateDistance = (steps: number): number => {
+            const AVERAGE_STRIDE_METERS = 0.762;
+            return steps * AVERAGE_STRIDE_METERS;
+          };
+
+          const projectCoordinate = (
+            lat: number,
+            lon: number,
+            distance: number,
+            bearing: number
+          ): { latitude: number; longitude: number } => {
+            const R = 6371000; // Earth's radius in meters
+            const angularDistance = distance / R;
+
+            const lat1 = (lat * Math.PI) / 180;
+            const lon1 = (lon * Math.PI) / 180;
+            const bearingRad = (bearing * Math.PI) / 180;
+
+            const lat2 = Math.asin(
+              Math.sin(lat1) * Math.cos(angularDistance) +
+                Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearingRad)
+            );
+
+            const lon2 =
+              lon1 +
+              Math.atan2(
+                Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(lat1),
+                Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2)
+              );
+
+            return {
+              latitude: (lat2 * 180) / Math.PI,
+              longitude: (lon2 * 180) / Math.PI,
+            };
+          };
+
+          const estimatedDistanceMeters = estimateDistance(mission.stepTarget);
+          goalCoord = projectCoordinate(
+            location.latitude,
+            location.longitude,
+            estimatedDistanceMeters,
+            mission.targetBearing
+          );
+        }
+
+        // Fetch walking directions for preview
+        console.log('🗺️ Fetching preview route...');
+        const directionsResult = await getWalkingDirections(
+          { latitude: location.latitude, longitude: location.longitude },
+          goalCoord
+        );
+
+        const streetPath = directionsResult.success ? directionsResult.path : null;
+
+        // Update preview state
+        setFocusedMissionPreview({
+          mission,
+          goalCoordinate: goalCoord,
+          streetPath: streetPath || null,
+        });
+
+        // Animate map to frame user + destination
+        if (mapRef.current && !isWeb) {
+          const region = calculateRegionForTwoPoints(
+            { latitude: location.latitude, longitude: location.longitude },
+            goalCoord,
+            1.5 // padding factor
+          );
+
+          console.log('🎥 Animating map to frame route preview');
+          mapRef.current.animateToRegion(region, 500); // 500ms animation
+        }
+      } catch (error) {
+        console.error('Error computing mission preview:', error);
+        // Set preview without street path
+        setFocusedMissionPreview({
+          mission,
+          goalCoordinate: null,
+          streetPath: null,
+        });
+      }
+    },
+    [location, isWeb]
+  );
+
   const handleDismissMissions = useCallback(() => {
     // Clear frozen location when dismissing mission selection
     console.log('🔓 Unfreezing location - missions dismissed');
     setFrozenScanLocation(null);
+    setFocusedMissionPreview(null); // Clear preview
     dismissMissions();
   }, [dismissMissions]);
 
@@ -465,6 +583,34 @@ export default function ExplorerDashboard() {
             </Marker>
           )}
 
+          {/* Preview path - Shows route for focused mission in carousel */}
+          {isSelecting && focusedMissionPreview && focusedMissionPreview.goalCoordinate && location && (
+            <Polyline
+              coordinates={
+                focusedMissionPreview.streetPath && focusedMissionPreview.streetPath.length > 0
+                  ? focusedMissionPreview.streetPath.map(coord => ({
+                      latitude: coord.latitude,
+                      longitude: coord.longitude,
+                    }))
+                  : [
+                      {
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                      },
+                      {
+                        latitude: focusedMissionPreview.goalCoordinate.latitude,
+                        longitude: focusedMissionPreview.goalCoordinate.longitude,
+                      },
+                    ]
+              }
+              strokeColor="#00B0FF"
+              strokeWidth={3}
+              lineDashPattern={[10, 10]}
+              lineCap="round"
+              zIndex={1}
+            />
+          )}
+
           {/* Quest path - Blue dashed line following streets to goal */}
           {activeMission && activeMission.goalCoordinate && location && (
             <Polyline
@@ -506,6 +652,23 @@ export default function ExplorerDashboard() {
               lineJoin="round"
               zIndex={2}
             />
+          )}
+
+          {/* Preview destination marker - Vibe-colored pulsing marker for carousel */}
+          {isSelecting && focusedMissionPreview && focusedMissionPreview.goalCoordinate && (
+            <Marker
+              coordinate={{
+                latitude: focusedMissionPreview.goalCoordinate.latitude,
+                longitude: focusedMissionPreview.goalCoordinate.longitude,
+              }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat={true}
+            >
+              <VibeDestinationMarker
+                vibe={focusedMissionPreview.mission.vibe}
+                size={28}
+              />
+            </Marker>
           )}
 
           {/* Goal marker - Dynamic destination marker with type-specific icon */}
@@ -588,10 +751,11 @@ export default function ExplorerDashboard() {
         </View>
       )}
 
-      {/* Quest Card Selection - Shown when missions are generated */}
-      <QuestCardContainer
+      {/* Quest Carousel - Horizontal mission selection with map preview */}
+      <HorizontalQuestCarousel
         missions={missions}
-        onSelect={handleSelectMission}
+        onSelectMission={handleSelectMission}
+        onFocusedMissionChange={handleFocusedMissionChange}
         isVisible={isSelecting}
         onDismiss={handleDismissMissions}
       />
