@@ -2,7 +2,6 @@ module.exports = function (api) {
   api.cache(true);
   return {
     presets: ['babel-preset-expo'],
-  };,
     overrides: [
       {
         // Include @fastshot/* packages for env var inlining
@@ -21,5 +20,6 @@ module.exports = function (api) {
           ],
         ],
       },
-    ]
+    ],
+  };
 };
