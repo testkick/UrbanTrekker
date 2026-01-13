@@ -20,6 +20,7 @@ import { ScanAreaButton } from '@/components/ScanAreaButton';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { HorizontalQuestCarousel } from '@/components/HorizontalQuestCarousel';
 import { VibeDestinationMarker } from '@/components/VibeDestinationMarker';
+import { PermissionGateway } from '@/components/PermissionGateway';
 import { ActiveMissionPanel, MissionCompletePanel } from '@/components/ActiveMissionPanel';
 import { calculateRegionForTwoPoints } from '@/utils/mapRegion';
 import { useLocation } from '@/hooks/useLocation';
@@ -27,6 +28,7 @@ import { usePedometer } from '@/hooks/usePedometer';
 import { useBattery } from '@/hooks/useBattery';
 import { useMission } from '@/hooks/useMission';
 import { useStepSync } from '@/hooks/useStepSync';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Mission } from '@/types/mission';
 import { Colors, Spacing, BorderRadius, Shadows, FontSizes } from '@/constants/theme';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '@/components/MapLib';
@@ -157,6 +159,23 @@ export default function ExplorerDashboard() {
   const insets = useSafeAreaInsets();
   const [isMapReady, setIsMapReady] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+
+  // Check permission status
+  const { allGranted, isChecking, recheckPermissions } = usePermissions();
+  const [showPermissionGateway, setShowPermissionGateway] = useState(false);
+
+  // Show permission gateway if permissions are not granted
+  useEffect(() => {
+    if (!isChecking && !allGranted) {
+      setShowPermissionGateway(true);
+    }
+  }, [isChecking, allGranted]);
+
+  const handlePermissionsGranted = async () => {
+    setShowPermissionGateway(false);
+    // Recheck to update state
+    await recheckPermissions();
+  };
 
   const { location, isLoading, errorMsg: locationError } = useLocation();
   const { steps, isAvailable: isPedometerAvailable, errorMsg: pedometerError } = usePedometer();
@@ -524,13 +543,23 @@ export default function ExplorerDashboard() {
     }
   }, [missionState, frozenScanLocation, location]);
 
-  if (isLoading) {
+  // Show permission gateway if permissions not granted
+  if (showPermissionGateway) {
+    return <PermissionGateway onPermissionsGranted={handlePermissionsGranted} />;
+  }
+
+  // Show loading while checking permissions or initializing
+  if (isChecking || isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <StatusBar style="dark" />
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Initializing Explorer...</Text>
-        <Text style={styles.loadingSubtext}>Acquiring location and sensors</Text>
+        <Text style={styles.loadingText}>
+          {isChecking ? 'Checking Permissions...' : 'Initializing Explorer...'}
+        </Text>
+        <Text style={styles.loadingSubtext}>
+          {isChecking ? 'Verifying access' : 'Acquiring location and sensors'}
+        </Text>
       </View>
     );
   }

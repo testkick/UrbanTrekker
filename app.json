@@ -11,9 +11,9 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Stepquest needs your location to show your position on the map and generate location-based walking quests.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Stepquest needs your location to track your walking routes and provide personalized quests based on your surroundings.",
-        "NSMotionUsageDescription": "Stepquest needs access to your motion data to count your steps and track your walking progress.",
+        "NSLocationWhenInUseUsageDescription": "Stepquest uses your location to calculate routes to nearby landmarks and provide real-time navigation along street paths. We discover hidden local gems and guide you through secret neighborhood routes.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Stepquest continues tracking your adventure even when your phone is in your pocket. This ensures your step count and route recording remain accurate throughout your entire journey, allowing seamless background quest progression.",
+        "NSMotionUsageDescription": "Stepquest uses motion sensors to accurately count every step of your journey and credit your achievement progress. Step tracking ensures fair rewards and precise distance measurements for completed quests.",
         "UIBackgroundModes": [
           "location"
         ],
@@ -67,14 +67,14 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Stepquest needs your location to show your position on the map and generate location-based walking quests.",
-          "locationWhenInUsePermission": "Stepquest needs your location to track your walking routes and provide personalized quests."
+          "locationAlwaysAndWhenInUsePermission": "Stepquest continues tracking your adventure even when your phone is in your pocket. This ensures your step count and route recording remain accurate throughout your entire journey.",
+          "locationWhenInUsePermission": "Stepquest uses your location to calculate routes to nearby landmarks and provide real-time navigation along street paths."
         }
       ],
       [
         "expo-sensors",
         {
-          "motionPermission": "Stepquest needs access to your motion data to count your steps and track your walking progress."
+          "motionPermission": "Stepquest uses motion sensors to accurately count every step of your journey and credit your achievement progress."
         }
       ],
       "@react-native-community/datetimepicker"
