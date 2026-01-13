@@ -76,6 +76,8 @@ export interface Mission {
     longitude: number;
     placeId: string;
   };
+  /** Flag indicating this is a new discovery (never visited before) */
+  isNewDiscovery?: boolean;
 }
 
 export interface ActiveMission extends Mission {

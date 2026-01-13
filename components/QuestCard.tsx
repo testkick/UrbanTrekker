@@ -85,6 +85,7 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
   const hasRealPOI = mission.realPOI !== undefined;
   const isTopRated = mission.realPOI && mission.realPOI.rating >= 4.5;
   const isOpenNow = mission.realPOI?.isOpenNow;
+  const isNewDiscovery = mission.isNewDiscovery === true;
 
   return (
     <AnimatedTouchable
@@ -100,6 +101,14 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
 
       {/* Top Right Badges */}
       <View style={styles.badgesContainer}>
+        {/* NEW DISCOVERY Badge - Glowing badge for never-visited places */}
+        {isNewDiscovery && (
+          <View style={styles.newDiscoveryBadge}>
+            <Ionicons name="sparkles" size={12} color={Colors.primary} />
+            <Text style={styles.newDiscoveryText}>New Discovery</Text>
+          </View>
+        )}
+
         {/* Open Now Badge */}
         {isOpenNow && (
           <View style={styles.openNowBadge}>
@@ -356,6 +365,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#B8860B',
+    letterSpacing: 0.5,
+  },
+  newDiscoveryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46, 125, 50, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    gap: 4,
+    // Subtle glow effect
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  newDiscoveryText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.primary,
     letterSpacing: 0.5,
   },
   content: {

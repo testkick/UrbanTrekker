@@ -209,12 +209,12 @@ const ScanAreaButtonComponent: React.FC<ScanAreaButtonProps> = ({
       {/* Helper text */}
       {!isScanning && (
         <Text style={styles.helperText}>
-          Discover high-rated local destinations nearby
+          Fresh adventures every scan with smart rotation
         </Text>
       )}
       {isScanning && (
         <Text style={styles.scanningHelperText}>
-          Searching 1km → 3km → 6km radius for top-rated spots...
+          Discovery Engine: Finding unique destinations nearby...
         </Text>
       )}
     </View>
@@ -324,13 +324,13 @@ const styles = StyleSheet.create({
     borderStyle: 'solid',
   },
   radarRing1: {
-    borderColor: '#4CAF50', // Green for Chill tier (1km)
+    borderColor: Colors.primary, // Forest Green for Discovery Engine
   },
   radarRing2: {
-    borderColor: '#2196F3', // Blue for Discovery tier (3km)
+    borderColor: Colors.accent, // Waypoint Orange for Discovery Engine
   },
   radarRing3: {
-    borderColor: '#FF5722', // Red for Workout tier (6km)
+    borderColor: Colors.primary, // Forest Green for Discovery Engine
   },
 });
 

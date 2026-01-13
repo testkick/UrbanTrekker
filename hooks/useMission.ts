@@ -438,6 +438,17 @@ export const useMission = (): UseMissionResult => {
         updateStatsAfterMission(stepsCompleted),
       ]);
 
+      // ROTATION ENGINE: Mark this place as completed in history
+      if (activeMission.realPOI) {
+        try {
+          const { addToQuestHistory } = await import('@/services/questRotation');
+          await addToQuestHistory(activeMission.realPOI.placeId, true); // true = completed
+          console.log(`✅ Marked ${activeMission.realPOI.name} as completed in rotation history`);
+        } catch (err) {
+          console.warn('Failed to update quest rotation history:', err);
+        }
+      }
+
       // Update active mission with reward
       setActiveMission((prev) => {
         if (!prev) return null;

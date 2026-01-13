@@ -726,9 +726,10 @@ Respond with ONLY a valid JSON array of 6 missions:
 /**
  * ENHANCED: Generate missions with real POI data from Google Places
  * This is the HIGH-QUALITY DISCOVERY ENGINE that searches for real businesses/landmarks
+ * NOW WITH DYNAMIC QUEST ROTATION: History-aware filtering, directional bias, daily theming
  */
 export const generateMissionsWithRealPOIs = async (location?: LocationContext): Promise<Mission[]> => {
-  console.log('🎯 HIGH-QUALITY DISCOVERY ENGINE - Starting...');
+  console.log('🎯 HIGH-QUALITY DISCOVERY ENGINE - Starting with Dynamic Quest Rotation...');
 
   if (!location) {
     console.warn('⚠️ No location provided, falling back to standard generation');
@@ -736,6 +737,14 @@ export const generateMissionsWithRealPOIs = async (location?: LocationContext): 
   }
 
   try {
+    // Import rotation utilities (dynamic to avoid circular deps)
+    const {
+      getBlacklistedPlaceIds,
+      getRandomCardinalDirection,
+      getDailyTheme,
+      getRandomNarrativeSeed,
+    } = await import('./questRotation');
+
     const { period, mood } = getTimeContext();
 
     // Get detailed location context
@@ -746,8 +755,28 @@ export const generateMissionsWithRealPOIs = async (location?: LocationContext): 
     console.log(`🌍 Environment: ${environmentType}`);
     console.log(`⏰ Time: ${period} (${mood})`);
 
-    // Execute 6-tier parallel POI search (Chill, Discovery, Workout)
-    const poiSearchResult = await searchMultiTierPOIs(location, 4.0);
+    // ROTATION ENGINE: Get directional bias for this scan
+    const { direction, bearing } = getRandomCardinalDirection();
+    console.log(`🧭 Directional Shift: Exploring ${direction} (${bearing}°)`);
+
+    // ROTATION ENGINE: Get history blacklist
+    const blacklistedPlaceIds = await getBlacklistedPlaceIds();
+    console.log(`📜 History Filter: ${blacklistedPlaceIds.length} places in blacklist`);
+
+    // ROTATION ENGINE: Get daily theme
+    const dailyTheme = getDailyTheme();
+    console.log(`🎨 Daily Theme: ${dailyTheme.emoji} ${dailyTheme.displayName}`);
+
+    // ROTATION ENGINE: Get narrative seed for AI variety
+    const narrativeSeed = getRandomNarrativeSeed();
+    console.log(`✨ Narrative Focus: ${narrativeSeed.focus}`);
+
+    // Execute 6-tier parallel POI search WITH ROTATION ENGINE
+    const poiSearchResult = await searchMultiTierPOIs(location, 4.0, {
+      bearingBias: bearing,
+      blacklistedPlaceIds,
+      categoryWeights: dailyTheme.categoryWeights,
+    });
 
     if (!poiSearchResult.success ||
         (poiSearchResult.tierResults.chill.length === 0 &&
@@ -790,7 +819,7 @@ POI #${index + 1}:
     // Get environment-specific descriptors
     const envDescriptors = getEnvironmentDescriptors(environmentType);
 
-    // ENHANCED PROMPT with Real POI Data
+    // ENHANCED PROMPT with Real POI Data + NARRATIVE SEED for variety
     const prompt = `You are a LOCAL ADVENTURE GUIDE and URBAN EXPLORER NARRATOR creating personalized walking quests for Stepquest explorers.
 
 🌍 LOCATION INTELLIGENCE:
@@ -800,6 +829,14 @@ ENVIRONMENT TYPE: ${environmentType.toUpperCase()}
 ${envDescriptors}
 
 TIME CONTEXT: ${period} (atmosphere: ${mood})
+
+🎨 TODAY'S THEME: ${dailyTheme.emoji} ${dailyTheme.displayName}
+${dailyTheme.displayName === 'Café Culture Day' ? 'Highlight cozy coffee spots, artisan bakeries, and social gathering places.' : ''}
+${dailyTheme.displayName === 'Nature Exploration Day' ? 'Emphasize green spaces, outdoor beauty, and natural landmarks.' : ''}
+${dailyTheme.displayName === 'Heritage Discovery Day' ? 'Focus on historical significance, architectural heritage, and cultural landmarks.' : ''}
+${dailyTheme.displayName === 'Culinary Adventure Day' ? 'Celebrate food culture, local flavors, and dining experiences.' : ''}
+${dailyTheme.displayName === 'Urban Explorer Day' ? 'Discover unique shops, galleries, and hidden urban gems.' : ''}
+${dailyTheme.displayName === 'Arts & Culture Day' ? 'Spotlight artistic venues, cultural centers, and creative spaces.' : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -818,12 +855,15 @@ ${workoutPOIContext || 'No POIs found in this tier'}
 
 🎯 YOUR MISSION: Create 6 IMMERSIVE walking adventures to these REAL businesses and landmarks.
 
+✨ NARRATIVE SEED (for variety): ${narrativeSeed.instruction}
+
 CRITICAL REQUIREMENTS:
 ✓ You MUST use the ACTUAL business names provided above (e.g., "Walk to Blue Bottle Coffee")
 ✓ Write a compelling "Why Visit" story for each REAL destination
 ✓ Incorporate the business type and atmosphere into the narrative
 ✓ Reference the SPECIFIC features of these real places
 ✓ Make explorers excited to discover these HIGH-RATED local gems
+✓ Apply the NARRATIVE SEED above to create unique storytelling angles
 
 Generate TWO missions for each tier (use POIs from matching tier):
 
@@ -894,6 +934,7 @@ Respond with ONLY a valid JSON array of 6 missions:
       // Create first mission for this vibe
       const poi1 = vibePOIs[0];
       if (poi1) {
+        const isNewDiscovery = !blacklistedPlaceIds.includes(poi1.placeId);
         missions.push({
           id: generateId(),
           vibe,
@@ -915,6 +956,7 @@ Respond with ONLY a valid JSON array of 6 missions:
             longitude: poi1.longitude,
             placeId: poi1.placeId,
           },
+          isNewDiscovery,
           generatedAt: new Date(),
         });
       }
@@ -922,6 +964,7 @@ Respond with ONLY a valid JSON array of 6 missions:
       // Create second mission for this vibe
       const poi2 = vibePOIs[1];
       if (poi2) {
+        const isNewDiscovery = !blacklistedPlaceIds.includes(poi2.placeId);
         missions.push({
           id: generateId(),
           vibe,
@@ -943,6 +986,7 @@ Respond with ONLY a valid JSON array of 6 missions:
             longitude: poi2.longitude,
             placeId: poi2.placeId,
           },
+          isNewDiscovery,
           generatedAt: new Date(),
         });
       }
@@ -954,7 +998,16 @@ Respond with ONLY a valid JSON array of 6 missions:
       return generateMissions(location);
     }
 
+    // ROTATION ENGINE: Mark these places as "seen" in history (not completed yet)
+    const { addToQuestHistory } = await import('./questRotation');
+    for (const mission of missions) {
+      if (mission.realPOI) {
+        await addToQuestHistory(mission.realPOI.placeId, false); // false = seen but not completed
+      }
+    }
+
     console.log(`✅ Generated ${missions.length} missions with real POI data`);
+    console.log(`🆕 Variety Score: ${poiSearchResult.varietyScore}% new discoveries`);
     return missions;
   } catch (error) {
     console.error('❌ Error in high-quality discovery engine:', error);
