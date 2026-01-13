@@ -172,14 +172,21 @@ const getLocalMissionHistory = async (): Promise<CompletedMission[]> => {
 
 /**
  * Save mission to local storage
+ * GUEST MODE: Limits guests to 5 most recent missions
  */
 const saveLocalMission = async (mission: CompletedMission): Promise<void> => {
   try {
     const history = await getLocalMissionHistory();
     const updatedHistory = [mission, ...history];
+
+    // Guest mode: Keep only the 5 most recent missions
+    // This encourages users to sign up for full history
+    const MAX_GUEST_MISSIONS = 5;
+    const limitedHistory = updatedHistory.slice(0, MAX_GUEST_MISSIONS);
+
     await AsyncStorage.setItem(
       STORAGE_KEYS.MISSION_HISTORY,
-      JSON.stringify(updatedHistory)
+      JSON.stringify(limitedHistory)
     );
   } catch (error) {
     console.error('Error saving local mission:', error);

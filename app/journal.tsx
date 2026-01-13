@@ -170,12 +170,34 @@ export default function JournalScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Sync Status Banner */}
+      {/* Sync Status Banner (Authenticated) */}
       {isAuthenticated && (
         <View style={styles.syncBanner}>
           <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
-          <Text style={styles.syncBannerText}>Synced to cloud</Text>
+          <Text style={styles.syncBannerText}>Synced to cloud • Full history saved</Text>
         </View>
+      )}
+
+      {/* Guest Mode Banner */}
+      {!isAuthenticated && (
+        <TouchableOpacity
+          style={styles.guestBanner}
+          onPress={handleCloudSync}
+          activeOpacity={0.85}
+        >
+          <View style={styles.guestBannerContent}>
+            <View style={styles.guestBannerIcon}>
+              <Ionicons name="compass" size={20} color={Colors.accent} />
+            </View>
+            <View style={styles.guestBannerText}>
+              <Text style={styles.guestBannerTitle}>Guest Explorer Mode</Text>
+              <Text style={styles.guestBannerSubtitle}>
+                Last 5 quests saved • Sign in to backup full history
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={20} color={Colors.accent} />
+          </View>
+        </TouchableOpacity>
       )}
 
       <ScrollView
@@ -223,25 +245,6 @@ export default function JournalScreen() {
           </View>
         </View>
 
-        {/* Cloud Sync CTA (when not authenticated) */}
-        {!isAuthenticated && (
-          <TouchableOpacity
-            style={styles.cloudCta}
-            onPress={handleCloudSync}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cloudCtaIcon}>
-              <Ionicons name="cloud-upload" size={24} color={Colors.accent} />
-            </View>
-            <View style={styles.cloudCtaContent}>
-              <Text style={styles.cloudCtaTitle}>Backup Your Progress</Text>
-              <Text style={styles.cloudCtaSubtitle}>
-                Sign in to sync your stats across devices
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.accent} />
-          </TouchableOpacity>
-        )}
 
         {/* History Section */}
         <View style={styles.historySection}>
@@ -398,6 +401,42 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '500',
   },
+  // Guest Mode Banner
+  guestBanner: {
+    backgroundColor: 'rgba(255, 111, 0, 0.08)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 111, 0, 0.1)',
+  },
+  guestBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  guestBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+  },
+  guestBannerText: {
+    flex: 1,
+  },
+  guestBannerTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  guestBannerSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    opacity: 0.7,
+  },
   scrollView: {
     flex: 1,
   },
@@ -444,41 +483,6 @@ const styles = StyleSheet.create({
     width: 1,
     height: 50,
     backgroundColor: 'rgba(0,0,0,0.1)',
-  },
-  // Cloud CTA
-  cloudCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 111, 0, 0.3)',
-    borderStyle: 'dashed',
-  },
-  cloudCtaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 111, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.md,
-  },
-  cloudCtaContent: {
-    flex: 1,
-  },
-  cloudCtaTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  cloudCtaSubtitle: {
-    fontSize: FontSizes.sm,
-    color: Colors.text,
-    opacity: 0.6,
   },
   // History Section
   historySection: {
