@@ -217,10 +217,17 @@ export default function ExplorerDashboard() {
 
   // Center map on user ONCE when location first becomes available
   const hasInitiallyCenter = useRef(false);
+  const lastCameraUpdateRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const cameraUpdateThreshold = 10; // meters - only update camera when user moves this far
+
   useEffect(() => {
     if (!isWeb && location && mapRef.current && isMapReady && !hasInitiallyCenter.current) {
       console.log('📍 Centering map on initial user location');
       hasInitiallyCenter.current = true;
+      lastCameraUpdateRef.current = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
       mapRef.current.animateToRegion(
         {
           latitude: location.latitude,
@@ -233,6 +240,71 @@ export default function ExplorerDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location?.latitude, location?.longitude, isMapReady, isWeb]);
+
+  // Smooth camera following during active mission
+  // Only updates camera when user moves significantly to prevent constant re-centering
+  useEffect(() => {
+    if (
+      !isWeb &&
+      missionState === 'active' &&
+      location &&
+      mapRef.current &&
+      isMapReady &&
+      hasInitiallyCenter.current &&
+      location.isSignificantMovement
+    ) {
+      const lastUpdate = lastCameraUpdateRef.current;
+
+      if (lastUpdate) {
+        // Calculate distance from last camera update
+        const R = 6371e3; // Earth radius in meters
+        const φ1 = (lastUpdate.latitude * Math.PI) / 180;
+        const φ2 = (location.latitude * Math.PI) / 180;
+        const Δφ = ((location.latitude - lastUpdate.latitude) * Math.PI) / 180;
+        const Δλ = ((location.longitude - lastUpdate.longitude) * Math.PI) / 180;
+
+        const a =
+          Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+          Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+
+        // Only update camera if user has moved beyond threshold
+        if (distance > cameraUpdateThreshold) {
+          console.log(`🎥 Smooth camera follow (moved ${distance.toFixed(1)}m)`);
+          lastCameraUpdateRef.current = {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          };
+
+          // Smooth animated transition
+          mapRef.current.animateToRegion(
+            {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              latitudeDelta: LATITUDE_DELTA,
+              longitudeDelta: LONGITUDE_DELTA,
+            },
+            800 // Smooth 800ms animation
+          );
+        }
+      } else {
+        // First update during mission
+        lastCameraUpdateRef.current = {
+          latitude: location.latitude,
+          longitude: location.longitude,
+        };
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    location?.latitude,
+    location?.longitude,
+    location?.isSignificantMovement,
+    missionState,
+    isMapReady,
+    isWeb,
+  ]);
 
   const handleCenterOnUser = useCallback(() => {
     if (!isWeb && location && mapRef.current) {
