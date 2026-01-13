@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -10,6 +10,7 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Mission, VIBE_CONFIG } from '@/types/mission';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +19,9 @@ interface QuestCardProps {
   mission: Mission;
   index: number;
   onSelect: (mission: Mission) => void;
+  onAccept: (mission: Mission) => void;
   isVisible: boolean;
+  isSelected: boolean;
 }
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -27,11 +30,15 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
   mission,
   index,
   onSelect,
+  onAccept,
   isVisible,
+  isSelected,
 }) => {
   const translateY = useSharedValue(300);
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.8);
+  const glowOpacity = useSharedValue(0);
+  const buttonScale = useSharedValue(0);
 
   const vibeConfig = VIBE_CONFIG[mission.vibe];
 
@@ -61,6 +68,25 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
     }
   }, [isVisible, index, translateY, opacity, scale]);
 
+  // Animate selection state (glow and button)
+  useEffect(() => {
+    if (isSelected) {
+      glowOpacity.value = withSpring(1, { damping: 15, stiffness: 150 });
+      buttonScale.value = withDelay(
+        100,
+        withSpring(1, {
+          damping: 10,
+          stiffness: 120,
+        })
+      );
+      scale.value = withSpring(1.02, { damping: 15, stiffness: 150 });
+    } else {
+      glowOpacity.value = withSpring(0, { damping: 15, stiffness: 150 });
+      buttonScale.value = withTiming(0, { duration: 150 });
+      scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+    }
+  }, [isSelected, glowOpacity, buttonScale, scale]);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateY: translateY.value },
@@ -69,17 +95,35 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
     opacity: opacity.value,
   }));
 
-  const handlePress = useCallback(() => {
-    // Animate press feedback
-    scale.value = withSpring(0.95, { damping: 15 });
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
 
-    // Call onSelect after a brief delay for visual feedback
-    // Using setTimeout instead of runOnJS to avoid animation thread issues
+  const buttonAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+    opacity: buttonScale.value,
+  }));
+
+  const handlePress = useCallback(() => {
+    // Trigger haptic feedback on selection
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Call onSelect to mark as selected (no longer activates mission immediately)
+    onSelect(mission);
+  }, [mission, onSelect]);
+
+  const handleAccept = useCallback(() => {
+    // Trigger strong haptic feedback on acceptance
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Animate scale up slightly before accepting
+    scale.value = withSpring(1.05, { damping: 15, stiffness: 200 });
+
+    // Call onAccept to activate the mission after brief feedback
     setTimeout(() => {
-      scale.value = withSpring(1, { damping: 15 });
-      onSelect(mission);
-    }, 100);
-  }, [mission, onSelect, scale]);
+      onAccept(mission);
+    }, 150);
+  }, [mission, onAccept, scale]);
 
   // Check if this is a premium POI mission
   const hasRealPOI = mission.realPOI !== undefined;
@@ -88,16 +132,29 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
   const isNewDiscovery = mission.isNewDiscovery === true;
 
   return (
-    <AnimatedTouchable
-      style={[styles.card, animatedStyle]}
-      onPress={handlePress}
-      activeOpacity={0.95}
-    >
-      {/* Vibe Badge */}
-      <View style={[styles.vibeBadge, { backgroundColor: vibeConfig.color }]}>
-        <Text style={styles.vibeEmoji}>{vibeConfig.emoji}</Text>
-        <Text style={styles.vibeLabel}>{vibeConfig.label}</Text>
-      </View>
+    <View style={styles.cardWrapper}>
+      {/* Glow Effect for Selected Card */}
+      {isSelected && (
+        <Animated.View style={[styles.glowContainer, glowStyle]}>
+          <View style={styles.glow} />
+        </Animated.View>
+      )}
+
+      <AnimatedTouchable
+        style={[
+          styles.card,
+          animatedStyle,
+          isSelected && styles.cardSelected,
+        ]}
+        onPress={handlePress}
+        activeOpacity={0.95}
+        disabled={isSelected} // Disable tap when already selected
+      >
+        {/* Vibe Badge */}
+        <View style={[styles.vibeBadge, { backgroundColor: vibeConfig.color }]}>
+          <Text style={styles.vibeEmoji}>{vibeConfig.emoji}</Text>
+          <Text style={styles.vibeLabel}>{vibeConfig.label}</Text>
+        </View>
 
       {/* Top Right Badges */}
       <View style={styles.badgesContainer}>
@@ -164,11 +221,29 @@ const QuestCardComponent: React.FC<QuestCardProps> = ({
         </Text>
       </View>
 
-      {/* Select Arrow */}
-      <View style={[styles.selectIndicator, { backgroundColor: vibeConfig.color }]}>
-        <Ionicons name="chevron-forward" size={20} color={Colors.white} />
-      </View>
+      {/* Select Arrow - Only show when NOT selected */}
+      {!isSelected && (
+        <View style={[styles.selectIndicator, { backgroundColor: vibeConfig.color }]}>
+          <Ionicons name="chevron-forward" size={20} color={Colors.white} />
+        </View>
+      )}
     </AnimatedTouchable>
+
+    {/* Accept Mission Button - Only show when selected */}
+    {isSelected && (
+      <Animated.View style={[styles.acceptButtonContainer, buttonAnimatedStyle]}>
+        <TouchableOpacity
+          style={styles.acceptButton}
+          onPress={handleAccept}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="checkmark-circle" size={24} color={Colors.white} />
+          <Text style={styles.acceptButtonText}>Accept Mission</Text>
+          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+        </TouchableOpacity>
+      </Animated.View>
+    )}
+  </View>
   );
 };
 
@@ -187,10 +262,29 @@ const QuestCardContainerComponent: React.FC<QuestCardContainerProps> = ({
 }) => {
   const backdropOpacity = useSharedValue(0);
   const insets = useSafeAreaInsets();
+  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
 
   useEffect(() => {
     backdropOpacity.value = withTiming(isVisible ? 1 : 0, { duration: 300 });
   }, [isVisible, backdropOpacity]);
+
+  // Reset selection when container becomes invisible
+  useEffect(() => {
+    if (!isVisible) {
+      setSelectedMissionId(null);
+    }
+  }, [isVisible]);
+
+  const handleSelectMission = useCallback((mission: Mission) => {
+    // Mark mission as selected (browsing step)
+    setSelectedMissionId(mission.id);
+    // Haptic feedback handled by QuestCard component
+  }, []);
+
+  const handleAcceptMission = useCallback((mission: Mission) => {
+    // Actually activate the mission (lock-in step)
+    onSelect(mission);
+  }, [onSelect]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: interpolate(backdropOpacity.value, [0, 1], [0, 0.3], Extrapolation.CLAMP),
@@ -228,8 +322,10 @@ const QuestCardContainerComponent: React.FC<QuestCardContainerProps> = ({
               key={mission.id}
               mission={mission}
               index={index}
-              onSelect={onSelect}
+              onSelect={handleSelectMission}
+              onAccept={handleAcceptMission}
               isVisible={isVisible}
+              isSelected={selectedMissionId === mission.id}
             />
           ))}
         </ScrollView>
@@ -291,6 +387,28 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
+  cardWrapper: {
+    position: 'relative',
+    marginBottom: Spacing.sm,
+  },
+  glowContainer: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    zIndex: 0,
+  },
+  glow: {
+    flex: 1,
+    borderRadius: BorderRadius.lg + 4,
+    backgroundColor: Colors.accent,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 10,
+  },
   card: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
@@ -301,6 +419,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     position: 'relative',
+    zIndex: 1,
+  },
+  cardSelected: {
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    ...Shadows.large,
   },
   vibeBadge: {
     width: 50,
@@ -450,6 +574,30 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  acceptButtonContainer: {
+    marginTop: Spacing.sm,
+    zIndex: 2,
+  },
+  acceptButton: {
+    backgroundColor: Colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    ...Shadows.medium,
+    shadowColor: Colors.accent,
+    shadowOpacity: 0.4,
+    elevation: 6,
+  },
+  acceptButtonText: {
+    color: Colors.white,
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });
 
