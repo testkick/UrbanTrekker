@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Pedometer } from 'expo-sensors';
 import { Ionicons } from '@expo/vector-icons';
+import { requestAndSyncTracking } from '@/services/trackingService';
 
 interface PermissionGatewayProps {
   onPermissionsGranted: () => void;
@@ -49,6 +50,12 @@ const PERMISSION_CARDS: PermissionCard[] = [
     title: 'Background Tracking',
     description: 'To ensure your adventure continues even when your phone is in your pocket.',
     color: '#8B5CF6', // Purple
+  },
+  {
+    icon: 'analytics',
+    title: 'Personalized Journey',
+    description: 'To provide more accurate local mission suggestions and sync your progress across devices.',
+    color: '#F59E0B', // Amber
   },
 ];
 
@@ -166,6 +173,37 @@ export const PermissionGateway: React.FC<PermissionGatewayProps> = ({
         } catch (backgroundError) {
           console.error('Error requesting background permission:', backgroundError);
           // Continue anyway - background is optional
+        }
+      }
+
+      // Step 4: Request App Tracking Transparency (iOS 14+) - OPTIONAL
+      // This enables personalized mission suggestions and progress sync
+      if (Platform.OS === 'ios') {
+        console.log('Requesting App Tracking Transparency...');
+        try {
+          const trackingResult = await requestAndSyncTracking();
+
+          if (trackingResult.status === 'authorized') {
+            console.log('✅ Tracking authorized, IDFA captured and synced');
+          } else if (trackingResult.status === 'denied') {
+            console.log('⚠️ Tracking denied - using anonymous identifier');
+            // No alert needed - user explicitly denied, app continues normally
+          } else if (trackingResult.status === 'restricted') {
+            console.log('⚠️ Tracking restricted by device policy');
+            // No alert - system restriction, not user choice
+          } else {
+            console.log('ℹ️ Tracking unavailable on this device');
+          }
+
+          // Log IDFA status for debugging
+          if (trackingResult.idfa) {
+            console.log(`📊 IDFA: ${trackingResult.idfa.substring(0, 8)}...`);
+          } else {
+            console.log('📊 IDFA: Not available (using anonymous identifier)');
+          }
+        } catch (trackingError) {
+          console.error('Error requesting tracking:', trackingError);
+          // Continue anyway - tracking is fully optional
         }
       }
 

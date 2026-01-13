@@ -14,6 +14,7 @@
         "NSLocationWhenInUseUsageDescription": "Stepquest uses your location to calculate routes to nearby landmarks and provide real-time navigation along street paths. We discover hidden local gems and guide you through secret neighborhood routes.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Stepquest continues tracking your adventure even when your phone is in your pocket. This ensures your step count and route recording remain accurate throughout your entire journey, allowing seamless background quest progression.",
         "NSMotionUsageDescription": "Stepquest uses motion sensors to accurately count every step of your journey and credit your achievement progress. Step tracking ensures fair rewards and precise distance measurements for completed quests.",
+        "NSUserTrackingUsageDescription": "Stepquest uses your data to provide more accurate local mission suggestions and to sync your exploration progress across your devices. Your privacy is always protected.",
         "UIBackgroundModes": [
           "location"
         ],
