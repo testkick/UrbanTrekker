@@ -320,6 +320,11 @@ export default function ExplorerDashboard() {
     }
   }, [isWeb, location]);
 
+  // Freeze location during scan to prevent marker jumping
+  // This ensures the marker stays at the exact position where the scan was initiated,
+  // preventing any perceived location "popping" during the scan animation
+  const [frozenScanLocation, setFrozenScanLocation] = useState<typeof location>(null);
+
   const handleScanArea = useCallback(() => {
     // Pass current location for context-aware mission generation
     const locationContext = location ? {
@@ -327,10 +332,24 @@ export default function ExplorerDashboard() {
       longitude: location.longitude,
     } : undefined;
 
+    // Freeze the current location for stable marker during scan
+    // This prevents the marker from updating while the scan animation is running
+    if (location) {
+      console.log('🔒 Freezing location during scan:', {
+        lat: location.latitude.toFixed(6),
+        lon: location.longitude.toFixed(6),
+      });
+      setFrozenScanLocation(location);
+    }
+
     scanForMissions(locationContext);
   }, [scanForMissions, location]);
 
   const handleSelectMission = useCallback((mission: Mission) => {
+    // Clear frozen location when mission is selected
+    console.log('🔓 Unfreezing location - mission selected');
+    setFrozenScanLocation(null);
+
     // Pass current location for goal coordinate calculation
     if (location) {
       selectMission(mission, steps, {
@@ -347,6 +366,13 @@ export default function ExplorerDashboard() {
   const handleDismissCompletion = useCallback(() => {
     cancelMission(); // Reset to idle state
   }, [cancelMission]);
+
+  const handleDismissMissions = useCallback(() => {
+    // Clear frozen location when dismissing mission selection
+    console.log('🔓 Unfreezing location - missions dismissed');
+    setFrozenScanLocation(null);
+    dismissMissions();
+  }, [dismissMissions]);
 
   // Debug: Log streetPath changes with detailed coordinates (only on streetPath change)
   // FIXED: Only depend on extracted values to prevent excessive logging
@@ -369,6 +395,16 @@ export default function ExplorerDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streetPathLength, missionTitle, hasStreetPath]);
+
+  // Log when switching between frozen and live location for debugging
+  useEffect(() => {
+    const isCurrentlyScanning = missionState === 'scanning';
+    if (isCurrentlyScanning && frozenScanLocation) {
+      console.log('📌 Using frozen location for marker (scan in progress)');
+    } else if (location && !isCurrentlyScanning) {
+      console.log('📍 Using live location for marker (normal tracking)');
+    }
+  }, [missionState, frozenScanLocation, location]);
 
   if (isLoading) {
     return (
@@ -417,8 +453,10 @@ export default function ExplorerDashboard() {
           {location && (
             <Marker
               coordinate={{
-                latitude: location.latitude,
-                longitude: location.longitude,
+                // Use frozen location during scan to prevent jumping
+                // Otherwise use live location for real-time tracking
+                latitude: (isScanning && frozenScanLocation) ? frozenScanLocation.latitude : location.latitude,
+                longitude: (isScanning && frozenScanLocation) ? frozenScanLocation.longitude : location.longitude,
               }}
               anchor={{ x: 0.5, y: 0.5 }}
               flat={true}
@@ -555,7 +593,7 @@ export default function ExplorerDashboard() {
         missions={missions}
         onSelect={handleSelectMission}
         isVisible={isSelecting}
-        onDismiss={dismissMissions}
+        onDismiss={handleDismissMissions}
       />
 
       {/* Active Mission Panel - Shown during active quest */}
