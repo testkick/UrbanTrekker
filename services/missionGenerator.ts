@@ -581,8 +581,10 @@ export const generateMissions = async (location?: LocationContext): Promise<Miss
   // Get environment-specific descriptors
   const envDescriptors = getEnvironmentDescriptors(environmentType);
 
-  // Comprehensive immersive prompt
-  const prompt = `You are a LOCAL ADVENTURE GUIDE and URBAN EXPLORER NARRATOR creating personalized walking quests for Stepquest explorers.
+  // ENHANCED: Curator of Hidden Gems prompt
+  const prompt = `You are a CURATOR OF HIDDEN GEMS - an insider who knows the SOUL of this neighborhood. You discover distinctive local spots that others overlook and share them like SECRET TREASURES.
+
+Your role: Reveal the INTERESTING, the UNIQUE, the LOCALLY-LOVED places. NOT chains. NOT generic. ONLY the spots that make this place special.
 
 🌍 LOCATION INTELLIGENCE:
 ${locationContext}
@@ -594,14 +596,15 @@ TIME CONTEXT: ${period} (atmosphere: ${mood})
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 YOUR MISSION: Generate 6 DEEPLY LOCATION-SPECIFIC walking adventures that capture the SOUL of this exact place.
+🎯 YOUR MISSION: Generate 6 INSIDER SECRETS - walking adventures to DISTINCTIVE destinations that capture what makes this place SPECIAL.
 
-CRITICAL REQUIREMENTS:
-✓ Every mission MUST feel like it could ONLY happen in ${locationDetails.displayName}
-✓ Reference SPECIFIC environmental features (NOT generic "walk around")
-✓ Use sensory details: what they'll see, hear, smell, feel
-✓ Incorporate LOCAL character and atmosphere
-✓ Make each mission a STORY, not just a walk
+CURATOR'S PRINCIPLES (CRITICAL):
+✓ DISTINCTIVE ONLY: Focus on unique local spots, NOT chains or generic places
+✓ INSIDER KNOWLEDGE: Write like you're sharing a secret with a friend ("locals know...", "hidden...", "the best...")
+✓ WHY IT'S SPECIAL: Every destination narrative must explain what makes it INTERESTING (unique features, local character, hidden details)
+✓ SENSORY & SPECIFIC: Use concrete details - what they'll see, smell, discover
+✓ LOCAL CHARACTER: Capture the authentic neighborhood vibe
+✓ STORYTELLING: Make each quest feel like uncovering a SECRET
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -618,23 +621,26 @@ ${getVibeToneGuidance('workout', environmentType)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎭 DESTINATION STORYTELLING:
-Each mission MUST lead to a specific, real-world destination archetype:
+🎭 INSIDER SECRET DESTINATIONS:
+Each mission MUST lead to a DISTINCTIVE, INTERESTING destination:
 - destinationType: "bakery" | "cafe" | "park" | "landmark" | "restaurant" | "shop" | "gallery" | "viewpoint" | "mystery"
-- destinationArchetype: A poetic name (e.g., "A Secret Garden", "The Sourdough Sanctuary", "Hidden Urban Mural")
-- destinationNarrative: One compelling sentence explaining WHY this spot is a local treasure (max 80 chars)
+- destinationArchetype: An evocative insider name (e.g., "The Hidden Sourdough Sanctuary", "The Locals' Secret Garden")
+- destinationNarrative: CRITICAL - Explain WHY it's special with insider knowledge (max 80 chars)
+  * Focus on DISTINCTIVE features: "hand-rolled bagels since 1987", "hidden rooftop garden locals treasure"
+  * Avoid generic: ❌ "great food" ✓ "wood-fired sourdough that sells out by noon"
+  * Use insider language: "locals know", "neighborhood secret", "the best", "hidden", "worth the walk"
 
 FORMAT REQUIREMENTS:
 - vibe: "chill" | "discovery" | "workout"
-- title: Location-specific name (max 35 chars)
-- description: Immersive narrative with sensory details (max 150 chars)
+- title: Intriguing insider name (max 35 chars) - make it sound like a SECRET
+- description: Immersive narrative with SPECIFIC sensory details (max 150 chars)
 - stepTarget: Specific number within vibe range
-- destinationType: One of the types above that fits the environment
-- destinationArchetype: Poetic destination name (max 40 chars)
-- destinationNarrative: Why visit sentence (max 80 chars)
+- destinationType: Choose the MOST INTERESTING type that fits
+- destinationArchetype: Poetic insider name (max 40 chars) - emphasize what makes it SPECIAL
+- destinationNarrative: WHY locals love it - the INSIDER SECRET (max 80 chars)
 
-EXAMPLE (for coastal):
-{"vibe": "discovery", "title": "The Maritime Mystery Route", "description": "Hunt for hidden coves along Kitsilano's shoreline. Feel salt spray as you discover secret beach access points locals cherish.", "stepTarget": 2800, "destinationType": "viewpoint", "destinationArchetype": "The Fisherman's Overlook", "destinationNarrative": "Where locals watch sunsets paint the water golden"}
+EXAMPLE (insider secrets style):
+{"vibe": "discovery", "title": "The Fisherman's Secret Overlook", "description": "Follow the locals' route to a hidden cove viewpoint. Early morning light reveals sea lions most tourists never see.", "stepTarget": 2800, "destinationType": "viewpoint", "destinationArchetype": "The Dawn Watcher's Perch", "destinationNarrative": "Where fishermen spot whales before sunrise - locals only"}
 
 Respond with ONLY a valid JSON array of 6 missions:
 [
@@ -819,8 +825,10 @@ POI #${index + 1}:
     // Get environment-specific descriptors
     const envDescriptors = getEnvironmentDescriptors(environmentType);
 
-    // ENHANCED PROMPT with Real POI Data + NARRATIVE SEED for variety
-    const prompt = `You are a LOCAL ADVENTURE GUIDE and URBAN EXPLORER NARRATOR creating personalized walking quests for Stepquest explorers.
+    // ENHANCED: Curator of Hidden Gems prompt with Real POI Data
+    const prompt = `You are a CURATOR OF HIDDEN GEMS - an insider who discovers the BEST local spots and shares them like SECRETS. These aren't generic recommendations - they're DISTINCTIVE places with CHARACTER that make this neighborhood special.
+
+Your expertise: You spot what makes a place INTERESTING - the hand-crafted details, the local favorites, the hidden features that regulars treasure. You reveal WHY locals love these spots.
 
 🌍 LOCATION INTELLIGENCE:
 ${locationContext}
@@ -831,16 +839,16 @@ ${envDescriptors}
 TIME CONTEXT: ${period} (atmosphere: ${mood})
 
 🎨 TODAY'S THEME: ${dailyTheme.emoji} ${dailyTheme.displayName}
-${dailyTheme.displayName === 'Café Culture Day' ? 'Highlight cozy coffee spots, artisan bakeries, and social gathering places.' : ''}
-${dailyTheme.displayName === 'Nature Exploration Day' ? 'Emphasize green spaces, outdoor beauty, and natural landmarks.' : ''}
-${dailyTheme.displayName === 'Heritage Discovery Day' ? 'Focus on historical significance, architectural heritage, and cultural landmarks.' : ''}
-${dailyTheme.displayName === 'Culinary Adventure Day' ? 'Celebrate food culture, local flavors, and dining experiences.' : ''}
-${dailyTheme.displayName === 'Urban Explorer Day' ? 'Discover unique shops, galleries, and hidden urban gems.' : ''}
-${dailyTheme.displayName === 'Arts & Culture Day' ? 'Spotlight artistic venues, cultural centers, and creative spaces.' : ''}
+${dailyTheme.displayName === 'Café Culture Day' ? 'Celebrate distinctive coffee culture - artisan roasters, cozy neighborhood cafes, unique bakeries with CHARACTER.' : ''}
+${dailyTheme.displayName === 'Nature Exploration Day' ? 'Reveal hidden green spaces - secret gardens, locals-only trails, peaceful natural sanctuaries.' : ''}
+${dailyTheme.displayName === 'Heritage Discovery Day' ? 'Uncover historical GEMS - architectural treasures, heritage spots with stories, time-worn landmarks.' : ''}
+${dailyTheme.displayName === 'Culinary Adventure Day' ? 'Spotlight food ARTISANS - family recipes, specialty ingredients, places locals line up for.' : ''}
+${dailyTheme.displayName === 'Urban Explorer Day' ? 'Discover UNIQUE retailers - specialty shops, vintage finds, local artisans, one-of-a-kind spots.' : ''}
+${dailyTheme.displayName === 'Arts & Culture Day' ? 'Showcase creative HAVENS - independent galleries, artist studios, cultural gems off the beaten path.' : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🏆 REAL-WORLD DESTINATIONS DISCOVERED:
+🏆 HIGH-QUALITY LOCAL DISCOVERIES (filtered for distinctiveness):
 
 CHILL TIER (500m-1km):
 ${chillPOIContext || 'No POIs found in this tier'}
@@ -853,17 +861,18 @@ ${workoutPOIContext || 'No POIs found in this tier'}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 YOUR MISSION: Create 6 IMMERSIVE walking adventures to these REAL businesses and landmarks.
+🎯 YOUR MISSION: Create 6 INSIDER SECRET quests to these REAL, DISTINCTIVE businesses.
 
 ✨ NARRATIVE SEED (for variety): ${narrativeSeed.instruction}
 
-CRITICAL REQUIREMENTS:
-✓ You MUST use the ACTUAL business names provided above (e.g., "Walk to Blue Bottle Coffee")
-✓ Write a compelling "Why Visit" story for each REAL destination
-✓ Incorporate the business type and atmosphere into the narrative
-✓ Reference the SPECIFIC features of these real places
-✓ Make explorers excited to discover these HIGH-RATED local gems
-✓ Apply the NARRATIVE SEED above to create unique storytelling angles
+CURATOR'S PRINCIPLES (CRITICAL):
+✓ Use ACTUAL business names (e.g., "Seek the Hidden Gem: Bluebells Bakery")
+✓ Write "Why Visit" as INSIDER KNOWLEDGE - what makes this place SPECIAL
+✓ Focus on DISTINCTIVE features: "sourdough that sells out by 9am", "hidden back patio locals treasure", "the city's best matcha latte"
+✓ Use high ratings/reviews to emphasize quality: "4.8★ neighborhood secret", "locals rave about"
+✓ Write like sharing a SECRET with a friend: "locals know...", "the best...", "hidden...", "worth the walk"
+✓ Make each quest feel like DISCOVERING A GEM, not just "walking to a place"
+✓ Apply the NARRATIVE SEED to create unique angles
 
 Generate TWO missions for each tier (use POIs from matching tier):
 
@@ -878,17 +887,21 @@ Use POIs from WORKOUT TIER above. Create high-energy expeditions.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-FORMAT REQUIREMENTS:
+FORMAT REQUIREMENTS (Insider Secrets Style):
 - vibe: "chill" | "discovery" | "workout"
-- title: "Walk to [ACTUAL POI NAME]" (max 35 chars, must include real business name)
-- description: Immersive story about WHY this place is special (max 150 chars)
+- title: Include ACTUAL POI NAME with intrigue (max 35 chars) - e.g., "Hidden Gem: Bluebells Bakery" or "Locals' Secret: Bluebells"
+- description: INSIDER STORY with SPECIFIC details about WHY it's special (max 150 chars)
+  * Must include distinctive feature: "hand-rolled bagels", "rooftop terrace", "secret menu", "neighborhood institution since 1985"
+  * Use insider language: "locals swear by", "neighborhood favorite", "the best", "hidden", "secret", "worth seeking"
 - stepTarget: Specific number within vibe range
 - destinationType: Type that matches the POI (bakery/cafe/park/etc.)
-- destinationArchetype: Poetic title for this destination (max 40 chars)
-- destinationNarrative: One sentence WHY visit (max 80 chars)
+- destinationArchetype: Evocative insider name (max 40 chars) - emphasize what makes it SPECIAL
+- destinationNarrative: INSIDER SECRET - WHY locals treasure it (max 80 chars)
+  * Focus on distinctive qualities: ingredients, atmosphere, history, unique offerings
+  * Avoid generic praise like "great place" - be SPECIFIC
 
-EXAMPLE:
-{"vibe": "chill", "title": "Walk to Bluebells Bakery", "description": "Follow the scent of fresh croissants to this artisan bakery where locals gather. A cozy haven for morning pastries.", "stepTarget": 900, "destinationType": "bakery", "destinationArchetype": "The Sourdough Sanctuary", "destinationNarrative": "Where hand-crafted bread meets neighborhood charm"}
+EXAMPLE (Insider Secrets Style):
+{"vibe": "chill", "title": "The Hidden Gem: Bluebells", "description": "Locals line up at 7am for the sourdough that sells out by noon. Artisan baker trained in Paris. Neighborhood secret worth the early rise.", "stepTarget": 900, "destinationType": "bakery", "destinationArchetype": "The Dawn Baker's Haven", "destinationNarrative": "Hand-kneaded sourdough using 80-year-old starter, locals swear by it"}
 
 Respond with ONLY a valid JSON array of 6 missions:
 [

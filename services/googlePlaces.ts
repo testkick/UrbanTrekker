@@ -40,22 +40,234 @@ export interface MultiPOIResult {
 
 /**
  * Map mission destination types to Google Places API types
+ * ENHANCED: Prioritizes interesting, distinctive venues
  */
 const DESTINATION_TYPE_MAPPING: Record<DestinationType, string[]> = {
   bakery: ['bakery', 'cafe'],
   cafe: ['cafe', 'coffee_shop'],
   park: ['park'],
-  landmark: ['tourist_attraction', 'point_of_interest'],
+  landmark: ['tourist_attraction', 'point_of_interest', 'cemetery', 'church'],
   restaurant: ['restaurant'],
-  shop: ['store', 'shopping_mall'],
+  shop: ['book_store', 'florist', 'home_goods_store', 'store'],
   gallery: ['art_gallery', 'museum'],
   viewpoint: ['tourist_attraction', 'park'],
   mystery: ['point_of_interest', 'tourist_attraction'],
 };
 
 /**
+ * Categories to EXCLUDE from discovery (generic/boring)
+ */
+const BORING_CATEGORIES = new Set([
+  'grocery_store',
+  'convenience_store',
+  'gas_station',
+  'pharmacy',
+  'atm',
+  'bank',
+  'post_office',
+  'supermarket',
+  'department_store',
+  'car_dealer',
+  'car_rental',
+  'car_wash',
+  'parking',
+  'storage',
+]);
+
+/**
+ * Interest multipliers for distinctive venue types
+ * Higher values = more interesting destinations
+ */
+const INTEREST_MULTIPLIERS: Record<string, number> = {
+  // Highly interesting (2.0+)
+  book_store: 2.0,
+  vintage_store: 2.0,
+  antique_store: 2.0,
+  art_gallery: 1.9,
+  cemetery: 1.7,
+
+  // Very interesting (1.8-1.9)
+  coffee_shop: 1.8,
+  bakery: 1.8,
+  viewpoint: 1.8,
+
+  // Interesting (1.5-1.7)
+  florist: 1.6,
+  home_goods_store: 1.5,
+  park: 1.5,
+  museum: 1.7,
+  tourist_attraction: 1.5,
+
+  // Default (1.0)
+  restaurant: 1.0,
+  cafe: 1.2,
+  store: 0.8,
+  shopping_mall: 0.6,
+  point_of_interest: 1.0,
+};
+
+/**
+ * Common chain name patterns to detect and deprioritize
+ */
+const CHAIN_PATTERNS = [
+  // Coffee chains
+  /starbucks/i,
+  /dunkin/i,
+  /peet'?s coffee/i,
+  /caribou coffee/i,
+
+  // Fast food
+  /mcdonald'?s/i,
+  /burger king/i,
+  /wendy'?s/i,
+  /taco bell/i,
+  /subway/i,
+  /chipotle/i,
+  /panera/i,
+
+  // Convenience/grocery
+  /7-eleven/i,
+  /circle k/i,
+  /walgreens/i,
+  /cvs/i,
+  /walmart/i,
+  /target/i,
+  /safeway/i,
+  /kroger/i,
+  /whole foods/i,
+
+  // Generic retail
+  /best buy/i,
+  /home depot/i,
+  /lowe'?s/i,
+];
+
+/**
+ * POI Quality Score Interface
+ */
+interface POIQualityScore {
+  score: number; // 0-100
+  isChain: boolean;
+  distinctivenessRatio: number;
+  categoryInterest: number;
+  reasons: string[];
+}
+
+/**
+ * Calculate quality score for a POI to determine if it's "interesting"
+ *
+ * Scoring factors:
+ * - High rating with moderate reviews = distinctive local spot (BOOST)
+ * - Chain detection = generic (PENALTY)
+ * - Category interest multiplier = unique venue type (BOOST)
+ * - Boring categories = filtered out (EXCLUDE)
+ *
+ * Example: 4.8★ bakery with 50 reviews > 4.2★ Starbucks with 2000 reviews
+ */
+function calculatePOIQualityScore(poi: POI): POIQualityScore {
+  const reasons: string[] = [];
+  let score = 50; // Start at baseline
+
+  // Factor 1: Chain detection (MAJOR PENALTY)
+  const isChain = CHAIN_PATTERNS.some(pattern => pattern.test(poi.name));
+  if (isChain) {
+    score -= 30;
+    reasons.push('Chain detected');
+  }
+
+  // Factor 2: Boring category detection (EXCLUDE)
+  const hasBoring = poi.types?.some(type => BORING_CATEGORIES.has(type));
+  if (hasBoring) {
+    score = 0; // Instant disqualification
+    reasons.push('Boring category');
+    return { score, isChain, distinctivenessRatio: 0, categoryInterest: 0, reasons };
+  }
+
+  // Factor 3: Distinctiveness ratio (rating vs review volume)
+  // Sweet spot: 4.5-5.0 stars with 20-200 reviews = local gem
+  // Avoid: High reviews (>1000) often = chains
+  const rating = poi.rating || 0;
+  const reviewCount = poi.userRatingsTotal || 0;
+
+  if (reviewCount > 0) {
+    // Calculate distinctiveness: rating / log10(reviews)
+    // This favors high-rated places with moderate review counts
+    const logReviews = Math.log10(Math.max(reviewCount, 1));
+    const distinctivenessRatio = rating / Math.max(logReviews, 1);
+
+    // Sweet spot: 4.5+ rating with 20-200 reviews
+    if (rating >= 4.5 && reviewCount >= 20 && reviewCount <= 200) {
+      score += 25;
+      reasons.push('Local gem (high rating, moderate reviews)');
+    } else if (rating >= 4.0 && reviewCount >= 10 && reviewCount <= 500) {
+      score += 15;
+      reasons.push('Quality spot');
+    }
+
+    // Penalty for suspiciously high review counts (likely chains)
+    if (reviewCount > 1000) {
+      score -= 15;
+      reasons.push('Very high reviews (possibly chain)');
+    }
+  } else {
+    score -= 10;
+    reasons.push('No reviews');
+  }
+
+  // Factor 4: Category interest multiplier
+  let categoryInterest = 1.0;
+  if (poi.types && poi.types.length > 0) {
+    // Find highest interest multiplier from POI's types
+    const multipliers = poi.types
+      .map(type => INTEREST_MULTIPLIERS[type] || 1.0)
+      .filter(m => m > 1.0);
+
+    if (multipliers.length > 0) {
+      categoryInterest = Math.max(...multipliers);
+      const boost = Math.round((categoryInterest - 1.0) * 20);
+      score += boost;
+      reasons.push(`Interesting category (${categoryInterest.toFixed(1)}x)`);
+    }
+  }
+
+  // Factor 5: Open now bonus
+  if (poi.isOpenNow) {
+    score += 5;
+    reasons.push('Open now');
+  }
+
+  // Calculate final distinctiveness ratio for reporting
+  const finalDistinctiveness = reviewCount > 0
+    ? rating / Math.log10(Math.max(reviewCount, 1))
+    : 0;
+
+  // Clamp score to 0-100
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    score,
+    isChain,
+    distinctivenessRatio: finalDistinctiveness,
+    categoryInterest,
+    reasons,
+  };
+}
+
+/**
+ * Check if a POI is "interesting" based on quality score
+ * Threshold: 50+ = interesting, <50 = skip
+ */
+function isInterestingPOI(poi: POI): boolean {
+  const qualityScore = calculatePOIQualityScore(poi);
+  return qualityScore.score >= 50;
+}
+
+/**
  * Search for high-quality POIs matching destination type
- * ENHANCED: Filters for open_now=true and rating > 4.0
+ * ENHANCED: Intelligent filtering for "interesting targets"
+ * - Filters out chains and boring categories
+ * - Prioritizes distinctive local spots (high rating + moderate reviews)
+ * - Boosts unique venue types (bookstores, bakeries, etc.)
  */
 export async function findHighQualityPOIs(
   location: { latitude: number; longitude: number },
@@ -78,56 +290,84 @@ export async function findHighQualityPOIs(
     const locationStr = `${location.latitude},${location.longitude}`;
     const allPOIs: POI[] = [];
 
-    // Try each type and collect high-quality results
+    // Try each type and collect interesting results
     for (const type of types) {
       const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${locationStr}&radius=${radius}&type=${type}&opennow=true&key=${GOOGLE_API_KEY}`;
 
-      console.log(`🔍 Searching for ${type} within ${radius}m (open now, high quality)...`);
+      console.log(`🔍 Searching for ${type} within ${radius}m (interesting targets only)...`);
 
       const response = await fetch(url);
       const data = await response.json();
 
       if (data.status === 'OK' && data.results && data.results.length > 0) {
-        // Filter for high-quality places (rating >= minRating)
-        const qualityPlaces = data.results
-          .filter((place: any) => {
-            const hasRating = place.rating !== undefined;
-            const meetsMinRating = place.rating >= minRating;
-            const isOpen = place.opening_hours?.open_now !== false;
-            return hasRating && meetsMinRating && isOpen;
-          })
-          .slice(0, maxResults)
-          .map((place: any) => ({
-            name: place.name,
-            address: place.vicinity || place.formatted_address || '',
-            latitude: place.geometry.location.lat,
-            longitude: place.geometry.location.lng,
-            placeId: place.place_id,
-            types: place.types,
-            rating: place.rating,
-            userRatingsTotal: place.user_ratings_total,
-            isOpenNow: place.opening_hours?.open_now || false,
-            priceLevel: place.price_level,
-            vicinity: place.vicinity,
-          }));
+        // Map raw results to POI objects
+        const candidatePOIs: POI[] = data.results.map((place: any) => ({
+          name: place.name,
+          address: place.vicinity || place.formatted_address || '',
+          latitude: place.geometry.location.lat,
+          longitude: place.geometry.location.lng,
+          placeId: place.place_id,
+          types: place.types,
+          rating: place.rating,
+          userRatingsTotal: place.user_ratings_total,
+          isOpenNow: place.opening_hours?.open_now || false,
+          priceLevel: place.price_level,
+          vicinity: place.vicinity,
+        }));
 
-        allPOIs.push(...qualityPlaces);
-        console.log(`  ✅ Found ${qualityPlaces.length} high-quality ${type}(s)`);
+        // Filter using quality scoring system
+        const interestingPlaces = candidatePOIs.filter(poi => {
+          const hasRating = poi.rating !== undefined;
+          const meetsMinRating = (poi.rating || 0) >= minRating;
+          const isOpen = poi.isOpenNow !== false;
+          const isInteresting = isInterestingPOI(poi);
+
+          // Debug logging for rejected POIs
+          if (!isInteresting && hasRating && meetsMinRating) {
+            const qualityScore = calculatePOIQualityScore(poi);
+            console.log(`  ⛔ Filtered out: ${poi.name} (score: ${qualityScore.score}, reasons: ${qualityScore.reasons.join(', ')})`);
+          }
+
+          return hasRating && meetsMinRating && isOpen && isInteresting;
+        });
+
+        // Calculate quality scores for sorting
+        const scoredPOIs = interestingPlaces.map(poi => ({
+          poi,
+          qualityScore: calculatePOIQualityScore(poi),
+        }));
+
+        // Sort by quality score (highest first)
+        scoredPOIs.sort((a, b) => b.qualityScore.score - a.qualityScore.score);
+
+        // Extract POIs and log quality info
+        const topPOIs = scoredPOIs.slice(0, maxResults).map(item => {
+          console.log(`  ✨ ${item.poi.name} - Score: ${item.qualityScore.score} (${item.qualityScore.reasons.join(', ')})`);
+          return item.poi;
+        });
+
+        allPOIs.push(...topPOIs);
+        console.log(`  ✅ Found ${topPOIs.length} interesting ${type}(s)`);
       } else {
         console.log(`  ⚠️ No results for ${type}: ${data.status}`);
       }
     }
 
-    // Sort by rating (highest first)
-    allPOIs.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    // Final sort by quality score across all types
+    const finalScored = allPOIs.map(poi => ({
+      poi,
+      score: calculatePOIQualityScore(poi).score,
+    }));
+    finalScored.sort((a, b) => b.score - a.score);
+    const finalPOIs = finalScored.slice(0, maxResults).map(item => item.poi);
 
     return {
-      success: allPOIs.length > 0,
-      pois: allPOIs.slice(0, maxResults),
-      error: allPOIs.length === 0 ? 'No high-quality POIs found nearby' : undefined,
+      success: finalPOIs.length > 0,
+      pois: finalPOIs,
+      error: finalPOIs.length === 0 ? 'No interesting POIs found nearby' : undefined,
     };
   } catch (error) {
-    console.error('Error searching for high-quality POIs:', error);
+    console.error('Error searching for interesting POIs:', error);
     return {
       success: false,
       pois: [],
