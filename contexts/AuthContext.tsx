@@ -6,9 +6,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { syncLocalDataToCloud, updateUserDeviceId, updateUserIPAddress } from '@/services/storage';
+import { syncLocalDataToCloud, updateUserDeviceId, updateUserIPAddress, SyncProgress } from '@/services/storage';
 import { getAnonymousDeviceId, initializeAnonymousDeviceId } from '@/services/anonymousDeviceId';
 import { initializeIPCapture, getPublicIPAddress } from '@/services/ipService';
+import { SyncOverlay } from '@/components/SyncOverlay';
 
 interface AuthContextType {
   user: User | null;
@@ -49,6 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Guest-to-Cloud Legacy Sync state
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [showSyncOverlay, setShowSyncOverlay] = useState(false);
 
   // Initialize anonymous device ID and IP capture on app startup
   useEffect(() => {
@@ -100,12 +105,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      // Sync local data to cloud after successful login
+      // Sync local data to cloud after successful login with premium UI
       if (data.user) {
         try {
-          await syncLocalDataToCloud(data.user.id);
+          // Show sync overlay
+          setShowSyncOverlay(true);
+
+          await syncLocalDataToCloud(data.user.id, (progress) => {
+            setSyncProgress(progress);
+          });
+
+          // Hide overlay after sync completes
+          setTimeout(() => {
+            setShowSyncOverlay(false);
+            setSyncProgress(null);
+          }, 1500); // Brief delay to show completion
         } catch {
           // Don't fail login if sync fails
+          setShowSyncOverlay(false);
+          setSyncProgress(null);
         }
 
         // Sync device ID and IP address after login
@@ -118,6 +136,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { error: null };
     } catch (error) {
+      setShowSyncOverlay(false);
+      setSyncProgress(null);
       return { error: error as Error };
     }
   }, []);
@@ -136,12 +156,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      // Sync local data to cloud after successful signup
+      // Sync local data to cloud after successful signup with premium UI
       if (data.user) {
         try {
-          await syncLocalDataToCloud(data.user.id);
+          // Show sync overlay
+          setShowSyncOverlay(true);
+
+          await syncLocalDataToCloud(data.user.id, (progress) => {
+            setSyncProgress(progress);
+          });
+
+          // Hide overlay after sync completes
+          setTimeout(() => {
+            setShowSyncOverlay(false);
+            setSyncProgress(null);
+          }, 1500); // Brief delay to show completion
         } catch {
           // Don't fail signup if sync fails
+          setShowSyncOverlay(false);
+          setSyncProgress(null);
         }
 
         // Sync device ID and IP address after signup
@@ -154,6 +187,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { error: null };
     } catch (error) {
+      setShowSyncOverlay(false);
+      setSyncProgress(null);
       return { error: error as Error };
     }
   }, []);
@@ -175,6 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={value}>
       {children}
+      <SyncOverlay visible={showSyncOverlay} progress={syncProgress} />
     </AuthContext.Provider>
   );
 }

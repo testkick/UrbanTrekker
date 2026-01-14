@@ -12,6 +12,7 @@ import { getAnonymousDeviceId } from '@/services/anonymousDeviceId';
 const STORAGE_KEYS = {
   USER_STATS: '@stepquest/user_stats',
   MISSION_HISTORY: '@stepquest/mission_history',
+  SCAN_LOCATIONS: '@stepquest/scan_locations', // Guest-mode scan location tracking
 } as const;
 
 // Types
@@ -172,21 +173,19 @@ const getLocalMissionHistory = async (): Promise<CompletedMission[]> => {
 
 /**
  * Save mission to local storage
- * GUEST MODE: Limits guests to 5 most recent missions
+ * UNLIMITED LOCAL LEDGER: Guests can now store unlimited missions locally
+ * This ensures no progress is lost before sign-in (Guest-to-Cloud Legacy Sync)
  */
 const saveLocalMission = async (mission: CompletedMission): Promise<void> => {
   try {
     const history = await getLocalMissionHistory();
     const updatedHistory = [mission, ...history];
 
-    // Guest mode: Keep only the 5 most recent missions
-    // This encourages users to sign up for full history
-    const MAX_GUEST_MISSIONS = 5;
-    const limitedHistory = updatedHistory.slice(0, MAX_GUEST_MISSIONS);
-
+    // Store all missions in local ledger (no limit)
+    // When user signs in, all missions will be migrated to cloud
     await AsyncStorage.setItem(
       STORAGE_KEYS.MISSION_HISTORY,
-      JSON.stringify(limitedHistory)
+      JSON.stringify(updatedHistory)
     );
   } catch (error) {
     console.error('Error saving local mission:', error);
@@ -560,53 +559,142 @@ export const getJournalData = async (): Promise<{
 };
 
 /**
- * Sync local data to cloud after login
- * This is called when a user successfully signs in or signs up
+ * Progress callback for sync operations
  */
-export const syncLocalDataToCloud = async (userId: string): Promise<void> => {
+export interface SyncProgress {
+  stage: 'missions' | 'stats' | 'locations' | 'cleanup';
+  current: number;
+  total: number;
+  message: string;
+}
+
+/**
+ * GUEST-TO-CLOUD LEGACY SYNC: Enhanced sync with progress tracking
+ * Syncs all local data to cloud after login (missions, stats, scan locations)
+ * This is called when a user successfully signs in or signs up
+ *
+ * @param userId The authenticated user's ID
+ * @param onProgress Optional callback for progress updates (for premium UI)
+ */
+export const syncLocalDataToCloud = async (
+  userId: string,
+  onProgress?: (progress: SyncProgress) => void
+): Promise<void> => {
   try {
     // Get local data
     const localStats = await getLocalUserStats();
     const localHistory = await getLocalMissionHistory();
+    const localScanLocation = await getLocalScanLocation();
 
     // Check if there's any local data to sync
     const hasLocalData =
       localStats.totalSteps > 0 ||
       localStats.totalMissions > 0 ||
-      localHistory.length > 0;
+      localHistory.length > 0 ||
+      localScanLocation !== null;
 
     if (!hasLocalData) {
       return;
     }
 
-    // Get current cloud stats
-    const cloudStats = await getCloudUserStats(userId);
+    const totalMissions = localHistory.length;
 
-    // Merge stats (add local to cloud)
+    // STAGE 1: Batch upload missions with progress tracking
+    onProgress?.({
+      stage: 'missions',
+      current: 0,
+      total: totalMissions,
+      message: 'Preserving your quest history...',
+    });
+
+    for (let i = 0; i < localHistory.length; i++) {
+      const mission = localHistory[i];
+      try {
+        await saveCloudMission(userId, mission);
+        onProgress?.({
+          stage: 'missions',
+          current: i + 1,
+          total: totalMissions,
+          message: `Synced ${i + 1} of ${totalMissions} quests`,
+        });
+      } catch {
+        // If mission already exists (duplicate ID), skip it
+        console.log(`Skipping duplicate mission: ${mission.id}`);
+      }
+    }
+
+    // STAGE 2: Merge and save stats
+    onProgress?.({
+      stage: 'stats',
+      current: 0,
+      total: 1,
+      message: 'Syncing your achievements...',
+    });
+
+    const cloudStats = await getCloudUserStats(userId);
     const mergedStats: UserStats = {
       totalSteps: cloudStats.totalSteps + localStats.totalSteps,
       totalMissions: cloudStats.totalMissions + localStats.totalMissions,
       totalDistanceKm: cloudStats.totalDistanceKm + localStats.totalDistanceKm,
       lastUpdated: new Date().toISOString(),
     };
-
-    // Save merged stats to cloud
     await saveCloudUserStats(userId, mergedStats);
 
-    // Upload local missions to cloud (if any)
-    for (const mission of localHistory) {
-      try {
-        await saveCloudMission(userId, mission);
-      } catch {
-        // If mission already exists (duplicate ID), skip it
-      }
+    onProgress?.({
+      stage: 'stats',
+      current: 1,
+      total: 1,
+      message: 'Achievements synced',
+    });
+
+    // STAGE 3: Sync last scan location (if exists)
+    if (localScanLocation) {
+      onProgress?.({
+        stage: 'locations',
+        current: 0,
+        total: 1,
+        message: 'Syncing exploration data...',
+      });
+
+      await supabase
+        .from('profiles')
+        .update({
+          last_scan_coords: localScanLocation.coords,
+          last_scan_context: localScanLocation.context,
+          last_scan_at: localScanLocation.timestamp,
+        })
+        .eq('id', userId);
+
+      onProgress?.({
+        stage: 'locations',
+        current: 1,
+        total: 1,
+        message: 'Exploration data synced',
+      });
     }
 
-    // Clear local data after successful sync
+    // STAGE 4: Clear local data after successful sync
+    onProgress?.({
+      stage: 'cleanup',
+      current: 0,
+      total: 1,
+      message: 'Finalizing sync...',
+    });
+
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.USER_STATS,
       STORAGE_KEYS.MISSION_HISTORY,
+      STORAGE_KEYS.SCAN_LOCATIONS,
     ]);
+
+    onProgress?.({
+      stage: 'cleanup',
+      current: 1,
+      total: 1,
+      message: 'Legacy preserved to cloud',
+    });
+
+    console.log('✅ Guest-to-Cloud Legacy Sync completed successfully');
   } catch (error) {
     console.error('Error syncing local data to cloud:', error);
     throw error;
@@ -706,10 +794,12 @@ export interface ScanLocationCoords {
 }
 
 /**
- * Save scan location to user's profile
+ * Save scan location to user's profile (cloud or local)
  * Called when "Scan Area" is clicked to log the user's location
  * Includes anonymous device ID for journey analytics
  * This is a fire-and-forget operation - errors are logged but not thrown
+ *
+ * GUEST-TO-CLOUD LEGACY SYNC: Now tracks scan locations locally for guests
  */
 export const saveScanLocation = async (
   coords: ScanLocationCoords,
@@ -717,25 +807,51 @@ export const saveScanLocation = async (
 ): Promise<void> => {
   try {
     const userId = await getCurrentUserId();
-
-    if (!userId) {
-      // User not logged in - skip saving to cloud
-      return;
-    }
-
-    // Get the anonymous device ID for tagging
     const deviceId = await getAnonymousDeviceId();
+    const timestamp = new Date().toISOString();
 
-    await supabase
-      .from('profiles')
-      .update({
-        last_scan_coords: coords,
-        last_scan_context: context,
-        last_scan_at: new Date().toISOString(),
-        device_id: deviceId, // Tag with anonymous device ID
-      })
-      .eq('id', userId);
+    if (userId) {
+      // User logged in - save to cloud
+      await supabase
+        .from('profiles')
+        .update({
+          last_scan_coords: coords,
+          last_scan_context: context,
+          last_scan_at: timestamp,
+          device_id: deviceId, // Tag with anonymous device ID
+        })
+        .eq('id', userId);
+    } else {
+      // Guest mode - save locally for later sync
+      const scanEvent = {
+        coords,
+        context,
+        timestamp,
+        deviceId,
+      };
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SCAN_LOCATIONS,
+        JSON.stringify(scanEvent)
+      );
+    }
   } catch {
     // Fire-and-forget - silently ignore errors
+  }
+};
+
+/**
+ * Get the last locally-saved scan location (for guest-to-cloud sync)
+ */
+const getLocalScanLocation = async (): Promise<{
+  coords: ScanLocationCoords;
+  context: string;
+  timestamp: string;
+  deviceId: string | null;
+} | null> => {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.SCAN_LOCATIONS);
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
   }
 };

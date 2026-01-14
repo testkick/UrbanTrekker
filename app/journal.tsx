@@ -192,7 +192,7 @@ export default function JournalScreen() {
             <View style={styles.guestBannerText}>
               <Text style={styles.guestBannerTitle}>Guest Explorer Mode</Text>
               <Text style={styles.guestBannerSubtitle}>
-                Last 5 quests saved • Sign in to backup full history
+                All quests saved locally • Sign in to backup to cloud
               </Text>
             </View>
             <Ionicons name="arrow-forward" size={20} color={Colors.accent} />
