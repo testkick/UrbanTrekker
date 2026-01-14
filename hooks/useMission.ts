@@ -6,11 +6,14 @@ import {
   saveCompletedMission,
   updateStatsAfterMission,
   saveScanLocation,
+  updateUserIPAddress,
   CompletedMission,
 } from '@/services/storage';
 import { findPOIInDirection } from '@/services/googlePlaces';
 import { getWalkingDirections } from '@/services/googleDirections';
 import { calculateDistance as calculateHaversineDistance, calculateRemainingPathDistance } from '@/utils/pathDistance';
+import { getPublicIPAddress } from '@/services/ipService';
+import { supabase } from '@/lib/supabase';
 
 // Minimum distance in meters between recorded GPS points
 const MIN_DISTANCE_METERS = 5;
@@ -437,6 +440,20 @@ export const useMission = (): UseMissionResult => {
         saveCompletedMission(completedMission),
         updateStatsAfterMission(stepsCompleted),
       ]);
+
+      // Capture and sync IP address after mission completion (fire-and-forget)
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const ipAddress = await getPublicIPAddress();
+          if (ipAddress) {
+            await updateUserIPAddress(user.id, ipAddress);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to sync IP address on mission completion:', err);
+        // Don't fail mission completion if IP sync fails
+      }
 
       // ROTATION ENGINE: Mark this place as completed in history
       if (activeMission.realPOI) {

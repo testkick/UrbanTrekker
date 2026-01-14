@@ -670,6 +670,29 @@ export const getUserDeviceId = async (userId: string): Promise<string | null> =>
   }
 };
 
+/**
+ * Update the IP address for a user's profile
+ * Called when user signs in, signs up, or completes a mission
+ * This is a fire-and-forget operation - errors are logged but not thrown
+ */
+export const updateUserIPAddress = async (userId: string, ipAddress: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ last_ip_address: ipAddress })
+      .eq('id', userId);
+
+    if (error) {
+      throw error;
+    }
+
+    console.log('✅ IP address synced to profile');
+  } catch (error) {
+    console.error('Error updating IP address:', error);
+    // Don't throw - this is a non-critical operation
+  }
+};
+
 // ============================================
 // SCAN LOCATION LOGGING
 // ============================================

@@ -6,8 +6,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { syncLocalDataToCloud, updateUserDeviceId } from '@/services/storage';
+import { syncLocalDataToCloud, updateUserDeviceId, updateUserIPAddress } from '@/services/storage';
 import { getAnonymousDeviceId, initializeAnonymousDeviceId } from '@/services/anonymousDeviceId';
+import { initializeIPCapture, getPublicIPAddress } from '@/services/ipService';
 
 interface AuthContextType {
   user: User | null;
@@ -22,10 +23,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
- * Sync anonymous device ID to user profile
+ * Sync anonymous device ID and IP address to user profile
  * Uses privacy-respecting UUID, not advertising identifiers
  */
-const syncDeviceId = async (userId: string): Promise<void> => {
+const syncDeviceIdAndIP = async (userId: string): Promise<void> => {
   try {
     // Get the anonymous device ID (UUID-based, not IDFA)
     const deviceId = await getAnonymousDeviceId();
@@ -33,8 +34,14 @@ const syncDeviceId = async (userId: string): Promise<void> => {
     if (deviceId) {
       await updateUserDeviceId(userId, deviceId);
     }
+
+    // Capture and sync IP address (fire-and-forget)
+    const ipAddress = await getPublicIPAddress();
+    if (ipAddress) {
+      await updateUserIPAddress(userId, ipAddress);
+    }
   } catch {
-    // Don't throw - device ID sync is not critical
+    // Don't throw - device ID and IP sync is not critical
   }
 };
 
@@ -43,11 +50,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize anonymous device ID on app startup
+  // Initialize anonymous device ID and IP capture on app startup
   useEffect(() => {
     // Initialize the device ID system (generates UUID if first launch)
     initializeAnonymousDeviceId().catch((err) => {
       console.error('Failed to initialize anonymous device ID:', err);
+    });
+
+    // Initialize IP capture system (fire-and-forget)
+    // This captures the IP on app launch for security monitoring
+    initializeIPCapture().catch((err) => {
+      console.error('Failed to initialize IP capture:', err);
     });
   }, []);
 
@@ -58,9 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setIsLoading(false);
 
-      // Sync device ID if user is logged in
+      // Sync device ID and IP address if user is logged in
       if (session?.user) {
-        syncDeviceId(session.user.id);
+        syncDeviceIdAndIP(session.user.id);
       }
     });
 
@@ -95,11 +108,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Don't fail login if sync fails
         }
 
-        // Sync device ID after login
+        // Sync device ID and IP address after login
         try {
-          await syncDeviceId(data.user.id);
+          await syncDeviceIdAndIP(data.user.id);
         } catch {
-          // Don't fail login if device ID sync fails
+          // Don't fail login if device ID and IP sync fails
         }
       }
 
@@ -131,11 +144,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Don't fail signup if sync fails
         }
 
-        // Sync device ID after signup
+        // Sync device ID and IP address after signup
         try {
-          await syncDeviceId(data.user.id);
+          await syncDeviceIdAndIP(data.user.id);
         } catch {
-          // Don't fail signup if device ID sync fails
+          // Don't fail signup if device ID and IP sync fails
         }
       }
 

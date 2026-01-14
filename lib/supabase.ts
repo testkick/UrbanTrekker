@@ -65,6 +65,7 @@ export interface ProfileRow {
   total_distance_km: number;
   updated_at: string;
   device_id: string | null;
+  last_ip_address: string | null;
 }
 
 export interface RouteCoordinateRow {
