@@ -31,7 +31,8 @@ export interface CompletedMission {
   stepTarget: number;
   stepsCompleted: number;
   rewardText: string;
-  completedAt: string;
+  startedAt: string; // ISO 8601 timestamp when mission was accepted
+  completedAt: string; // ISO 8601 timestamp when mission was completed
   durationMinutes: number;
   /** GPS route coordinates recorded during the mission */
   routeCoordinates?: RouteCoordinate[];
@@ -104,6 +105,7 @@ const missionRowToCompleted = (row: MissionRow): CompletedMission => ({
   stepTarget: row.step_target,
   stepsCompleted: row.steps_completed,
   rewardText: row.reward_text || '',
+  startedAt: row.started_at || row.created_at, // Fallback to created_at for legacy missions
   completedAt: row.completed_at,
   durationMinutes: row.duration_minutes,
   routeCoordinates: row.route_coordinates || undefined,
@@ -289,7 +291,8 @@ const saveCloudMission = async (userId: string, mission: CompletedMission): Prom
         step_target: mission.stepTarget,
         steps_completed: mission.stepsCompleted,
         reward_text: mission.rewardText,
-        completed_at: mission.completedAt,
+        started_at: mission.startedAt, // When mission was accepted
+        completed_at: mission.completedAt, // When mission was completed
         duration_minutes: mission.durationMinutes,
         route_coordinates: mission.routeCoordinates || [],
         device_id: deviceId, // Tag with anonymous device ID

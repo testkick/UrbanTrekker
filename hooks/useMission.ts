@@ -411,7 +411,8 @@ export const useMission = (): UseMissionResult => {
         stepTarget: activeMission.stepTarget,
         stepsCompleted,
         rewardText,
-        completedAt: new Date().toISOString(),
+        startedAt: new Date(activeMission.startedAt).toISOString(), // Precise mission start timestamp
+        completedAt: new Date().toISOString(), // Precise mission completion timestamp
         durationMinutes,
         routeCoordinates: activeMission.routeCoordinates,
 

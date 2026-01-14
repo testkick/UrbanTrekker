@@ -83,7 +83,8 @@ export interface MissionRow {
   step_target: number;
   steps_completed: number;
   reward_text: string | null;
-  completed_at: string;
+  started_at: string | null; // When mission was accepted
+  completed_at: string; // When mission was completed
   duration_minutes: number;
   created_at: string;
   route_coordinates: RouteCoordinateRow[] | null;

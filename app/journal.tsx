@@ -22,6 +22,11 @@ import {
 } from '@/services/storage';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  formatTimeRange,
+  formatDuration,
+  formatRelativeDate,
+} from '@/utils/timeFormat';
 
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
@@ -109,22 +114,6 @@ export default function JournalScreen() {
     }
   }, [isAuthenticated, user, signOut, loadData]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
 
   if (isLoading || authLoading) {
     return (
@@ -274,11 +263,11 @@ export default function JournalScreen() {
                       </Text>
                       <View style={styles.historyMeta}>
                         <Text style={styles.historyDate}>
-                          {formatDate(mission.completedAt)}
+                          {formatRelativeDate(mission.completedAt)}
                         </Text>
                         <Text style={styles.historyDot}>•</Text>
                         <Text style={styles.historyTime}>
-                          {formatTime(mission.completedAt)}
+                          {formatTimeRange(mission.startedAt, mission.completedAt)}
                         </Text>
                       </View>
                     </View>
@@ -305,9 +294,7 @@ export default function JournalScreen() {
                     <View style={styles.historyDuration}>
                       <Ionicons name="time-outline" size={12} color={Colors.text} style={{ opacity: 0.5 }} />
                       <Text style={styles.historyDurationText}>
-                        {mission.durationMinutes < 60
-                          ? `${mission.durationMinutes} min`
-                          : `${Math.floor(mission.durationMinutes / 60)}h ${mission.durationMinutes % 60}m`}
+                        {formatDuration(mission.durationMinutes)}
                       </Text>
                     </View>
                   )}
